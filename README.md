@@ -41,9 +41,23 @@ Sentence-transformers embeddings are loaded automatically by Python from Hugging
    ```bash
    cd backend
    python -m venv .venv
-   .venv\Scripts\activate
-   pip install -r requirements.txt
    ```
+
+   Activate the environment, then install:
+
+   - **macOS / Linux** (folder name can be `.venv` or `venv`):
+
+     ```bash
+     source .venv/bin/activate
+     pip install -r requirements.txt
+     ```
+
+   - **Windows (cmd)**:
+
+     ```bash
+     .venv\Scripts\activate
+     pip install -r requirements.txt
+     ```
 
    On Windows, if `python` is not on PATH, use `py -3` instead, or set `PYTHON` when running Electron (see below).
 
@@ -79,8 +93,11 @@ Use **Ping Backend** and **Echo** in the UI to hit the API.
 
 ## Manual backend (optional)
 
+With the venv activated (see **Setup**):
+
 ```bash
 cd backend
+source .venv/bin/activate   # macOS/Linux — Windows: .venv\Scripts\activate
 uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -106,18 +123,25 @@ curl -X POST http://127.0.0.1:8000/query \
 
 ### Backend unit tests
 
+With the venv **activated** (see **Setup**):
+
 ```bash
 cd backend
-pip install -r requirements.txt
+source .venv/bin/activate   # macOS/Linux — or: source venv/bin/activate
+pip install -r requirements.txt   # once, if not already installed
 python -m pytest tests/ -v
 ```
 
 Tests use a temporary **Chroma** directory and **cases** root (`CHROMA_PERSIST_DIR`, `CASES_ROOT`) and mock **`embed_texts`** so they run without downloading embedding models. `/store` is tested with **`parse_legal_structure` mocked** so Ollama is not required.
 
+- **Integration (RAG path, no Ollama):** `python -m pytest tests/ -m integration -q`
+- **Live Ollama** (optional, needs Ollama on `127.0.0.1:11434`): `python -m pytest tests/ -m ollama -q`
+
 Coverage (app modules under `backend/`, excludes `tests/`; config in `backend/pyproject.toml`):
 
 ```bash
 cd backend
+source .venv/bin/activate
 python -m pytest tests/ -q --cov=. --cov-report=term-missing
 ```
 

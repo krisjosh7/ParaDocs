@@ -1,8 +1,29 @@
 from __future__ import annotations
 
 import os
+import urllib.error
+import urllib.request
 
 import pytest
+
+
+def ollama_server_reachable(timeout_s: float = 1.5) -> bool:
+    try:
+        req = urllib.request.Request(
+            "http://127.0.0.1:11434/api/tags",
+            method="GET",
+            headers={"Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            return resp.status == 200
+    except (OSError, urllib.error.URLError, TimeoutError):
+        return False
+
+
+@pytest.fixture
+def require_ollama() -> None:
+    if not ollama_server_reachable():
+        pytest.skip("Ollama not reachable at http://127.0.0.1:11434")
 
 
 @pytest.fixture

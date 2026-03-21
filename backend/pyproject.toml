@@ -1,5 +1,9 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: full RAG path (HTTP + Chroma + disk); no Ollama",
+    "ollama: requires Ollama on 127.0.0.1:11434; skipped if unreachable",
+]
 
 [tool.coverage.run]
 source = ["."]
