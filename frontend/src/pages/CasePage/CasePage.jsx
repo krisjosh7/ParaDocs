@@ -4,9 +4,8 @@ import { CircularProgressbarWithChildren, buildStyles } from 'react-circular-pro
 import 'react-circular-progressbar/dist/styles.css'
 import { VerticalTimeline, VerticalTimelineElement } from 'react-vertical-timeline-component'
 import 'react-vertical-timeline-component/style.min.css'
-import LiveSession from '../LiveSession/LiveSession.jsx'
 import './CasePage.css'
-import ContextUploadPage from '../ContextUpload/ContextUploadPage.jsx'
+import ContextUploadPage from '../ContextUploadPage/ContextUploadPage.jsx'
 
 const STATUS_ORDER = ['done', 'in_progress', 'upcoming']
 const STATUS_LABELS = { done: 'Done', in_progress: 'In Progress', upcoming: 'Upcoming' }
@@ -59,6 +58,14 @@ const timelineIconStyle = {
 }
 
 const TABS = ['Case Dashboard', 'Discovery', 'Live Session']
+
+function LiveSession() {
+  return (
+    <main className="main-content case-page-content">
+      <p className="cases-empty">Live Session view is not available yet.</p>
+    </main>
+  )
+}
 
 export default function CasePage({ cases }) {
   const { caseId } = useParams()
