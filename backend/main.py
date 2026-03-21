@@ -11,6 +11,9 @@ from fastapi import Body, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+# Routers — each subgraph registers its own router here
+# from research.router import router as research_router  # uncomment when ready
+
 app = FastAPI()
 SESSION_MEDIA_DIR = Path(tempfile.mkdtemp(prefix="paradocs-media-"))
 LEGACY_MEDIA_DIR = Path(__file__).resolve().parent / "media"
@@ -37,6 +40,9 @@ atexit.register(cleanup_session_media)
 @app.on_event("shutdown")
 def on_shutdown() -> None:
     cleanup_session_media()
+
+
+# app.include_router(research_router, prefix="/research")  # uncomment when ready
 
 
 @app.get("/health")
