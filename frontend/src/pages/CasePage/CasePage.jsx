@@ -194,7 +194,7 @@ export default function CasePage({ cases }) {
         {activeTab === 'Live Session' ? (
           <LiveSession />
         ) : isDiscoveryRoute ? (
-          <ContextUploadPage />
+          <ContextUploadPage caseId={caseId} />
         ) : (
           <main className="main-content case-page-content">
             <div className="case-page-top">
