@@ -75,10 +75,8 @@ class SessionQueryResponse(BaseModel):
 
 class SaveToContextRequest(BaseModel):
     case_id: str
-    doc_id: str
-    text: str        # the excerpt/snippet to store
+    raw_text: str    # the excerpt/snippet to store
     source: str      # human-readable label (case name)
-    url: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -163,10 +161,8 @@ async def save_to_context(req: SaveToContextRequest):
                 f"{RAG_BASE}/store",
                 json={
                     "case_id": req.case_id,
-                    "doc_id": req.doc_id,
-                    "text": req.text,
-                    "source": req.source,
-                    "url": req.url,
+                    "raw_text": req.raw_text,
+                    "source": "web",
                 },
             )
             resp.raise_for_status()

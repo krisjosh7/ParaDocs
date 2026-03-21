@@ -150,10 +150,8 @@ export default function LiveSession({ caseId = 'demo-case' }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           case_id: caseId,
-          doc_id: item.id,
-          text: item.excerpt ?? item.label,
+          raw_text: item.excerpt ?? item.label,
           source: item.label,
-          url: item.url ?? null,
         }),
       })
       return res.ok
