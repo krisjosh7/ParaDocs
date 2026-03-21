@@ -1,0 +1,29 @@
+.context-document-download-wrap {
+  margin: 12px 0 0;
+}
+
+.context-document-download-btn {
+  display: inline-block;
+  border: 1px solid #2056d3;
+  background: #2056d3;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.context-document-download-btn:hover {
+  background: #1a4ab8;
+}
+
+.context-document-download-btn--icon {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

@@ -1,0 +1,338 @@
+/* Shared by all context upload wizards (text, audio, file, …) */
+
+.context-upload-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  background: rgba(5, 10, 24, 0.46);
+  backdrop-filter: blur(3px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.context-library-stack--upload-open .context-upload-overlay {
+  inset: 0;
+}
+
+.context-upload-overlay-panel {
+  position: relative;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  flex-shrink: 0;
+}
+
+.context-upload-wizard {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 24px 26px 20px;
+  border-radius: 16px;
+  background: #f6f3ea;
+  border: 1px solid #e6dcc4;
+  box-shadow: 0 22px 56px rgba(5, 10, 24, 0.38);
+  flex-shrink: 0;
+}
+
+.context-upload-wizard-title {
+  margin: 0 0 16px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1c2744;
+}
+
+.context-upload-label {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5a678a;
+}
+
+.context-upload-optional {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #8a93a8;
+}
+
+.context-upload-input,
+.context-upload-textarea {
+  width: 100%;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #e6dcc4;
+  background: #faf8f3;
+  color: #1c2744;
+  font-size: 0.95rem;
+  font-family: inherit;
+  line-height: 1.45;
+  outline: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+  box-sizing: border-box;
+}
+
+.context-upload-input::placeholder,
+.context-upload-textarea::placeholder {
+  color: #8a93a8;
+}
+
+.context-upload-textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.context-upload-textarea--tall {
+  min-height: min(48vh, 320px);
+}
+
+.context-upload-input:focus,
+.context-upload-textarea:focus {
+  border-color: rgba(32, 86, 211, 0.45);
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(32, 86, 211, 0.12);
+}
+
+.context-upload-wizard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.context-upload-btn {
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+.context-upload-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.context-upload-btn--ghost {
+  border: 1px solid rgba(28, 39, 68, 0.2);
+  background: transparent;
+  color: #374669;
+}
+
+.context-upload-btn--ghost:hover:not(:disabled) {
+  background: rgba(28, 39, 68, 0.06);
+}
+
+.context-upload-btn--danger {
+  border-color: rgba(179, 58, 58, 0.35);
+  color: #b33a3a;
+}
+
+.context-upload-btn--primary {
+  border: 1px solid #2056d3;
+  background: #2056d3;
+  color: #fff;
+}
+
+.context-upload-btn--primary:hover:not(:disabled) {
+  background: #1a4ab8;
+  transform: translateY(-1px);
+}
+
+.context-upload-wizard-foot {
+  margin: 14px 0 0;
+  font-size: 0.78rem;
+  color: #8a93a8;
+}
+
+.context-upload-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.context-upload-recorder-error {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(200, 60, 60, 0.08);
+  border: 1px solid rgba(200, 60, 60, 0.25);
+  color: #b33a3a;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.context-upload-file-meta {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #faf8f3;
+  border: 1px solid #e6dcc4;
+  color: #374669;
+  font-size: 0.9rem;
+}
+
+.context-upload-file-meta--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.context-upload-file-meta-text {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.context-upload-file-preview {
+  margin: 0 0 14px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #e6dcc4;
+  background: #faf8f3;
+}
+
+.context-upload-file-preview-image,
+.context-upload-file-preview-video {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 10px;
+  display: block;
+  background: #10182d;
+}
+
+.context-upload-file-preview-audio {
+  width: 100%;
+  display: block;
+}
+
+.context-upload-file-preview-doc {
+  padding: 10px;
+  border-radius: 10px;
+  background: #f3efe4;
+  color: #374669;
+}
+
+.context-upload-file-preview-doc p {
+  margin: 0;
+}
+
+.context-upload-file-preview-doc-sub {
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: #6f7892;
+}
+
+.context-upload-file-preview-pdf {
+  width: 100%;
+  height: 220px;
+  border: 0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.context-upload-file-preview-docx {
+  border-radius: 10px;
+  border: 1px solid #e6dcc4;
+  background: #fff;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.context-upload-file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.context-upload-dropzone {
+  margin: 0 0 16px;
+  padding: 26px 18px;
+  border-radius: 14px;
+  border: 2px dashed rgba(32, 86, 211, 0.35);
+  background: linear-gradient(180deg, #f9f8f3 0%, #f4f1e8 100%);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease;
+}
+
+.context-upload-dropzone:hover {
+  border-color: rgba(32, 86, 211, 0.6);
+  background: #f9f6ee;
+  transform: translateY(-1px);
+}
+
+.context-upload-dropzone:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(32, 86, 211, 0.18);
+}
+
+.context-upload-dropzone--dragging {
+  border-color: #2056d3;
+  background: #eef3ff;
+}
+
+.context-upload-dropzone-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1c2744;
+}
+
+.context-upload-dropzone-subtitle {
+  margin: 8px 0 0;
+  font-size: 0.86rem;
+  color: #5a678a;
+}
+
+.context-upload-audio-preview {
+  margin: 0 0 18px;
+}
+
+.context-upload-audio-preview--small {
+  margin: 0 0 14px;
+}
+
+.context-upload-audio-preview audio {
+  width: 100%;
+}
+
+.context-upload-waveform-wrap {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #e6dcc4;
+  background: #faf8f3;
+  padding: 12px 14px;
+  margin: 0 0 18px;
+}
+
+.context-upload-waveform-time {
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  color: #5a678a;
+  font-weight: 650;
+}
+
+.context-upload-waveform-canvas {
+  width: 100%;
+  height: 56px;
+  display: block;
+}
