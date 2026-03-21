@@ -6,6 +6,7 @@ import {
   inferContextTypeFromFile,
   makeTextPreview,
   newContextId,
+  uploadVideoForPlayback,
 } from './contextUploadHelpers'
 import DocxPreview from './DocxPreview'
 import './ContextUploadWizard.css'
@@ -604,6 +605,8 @@ export function FileUploadFlow({ open, onClose, onAddItem }) {
   const [draft, setDraft] = useState({ title: '', caption: '' })
   const [fileUrl, setFileUrl] = useState(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
   const fileUrlRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -618,6 +621,8 @@ export function FileUploadFlow({ open, onClose, onAddItem }) {
     setSelectedType('')
     setDraft({ title: '', caption: '' })
     setIsDragging(false)
+    setIsUploading(false)
+    setUploadError('')
     if (fileUrlRef.current) {
       try {
         URL.revokeObjectURL(fileUrlRef.current)
@@ -642,6 +647,7 @@ export function FileUploadFlow({ open, onClose, onAddItem }) {
   }, [onClose])
 
   const processFile = useCallback((nextFile) => {
+    setUploadError('')
     setSelectedFile(nextFile)
     if (!nextFile) {
       setSelectedType('')
@@ -693,7 +699,7 @@ export function FileUploadFlow({ open, onClose, onAddItem }) {
     setFileUrl(null)
   }, [])
 
-  const handleAdd = useCallback(() => {
+  const handleAdd = useCallback(async () => {
     if (!selectedFile || !fileUrlRef.current || !selectedType) return
 
     const title = draft.title.trim() || selectedFile.name || 'Untitled file'
@@ -710,7 +716,19 @@ export function FileUploadFlow({ open, onClose, onAddItem }) {
 
     let newItem = baseItem
     if (selectedType === 'image') newItem = { ...baseItem, imageSrc: fileUrlRef.current }
-    else if (selectedType === 'video') newItem = { ...baseItem, videoSrc: fileUrlRef.current }
+    else if (selectedType === 'video') {
+      setIsUploading(true)
+      setUploadError('')
+      try {
+        const serverVideoUrl = await uploadVideoForPlayback(selectedFile)
+        newItem = { ...baseItem, videoSrc: serverVideoUrl, fileName: `${title}.mp4` }
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : 'Failed to encode video on server.')
+        return
+      } finally {
+        setIsUploading(false)
+      }
+    }
     else if (selectedType === 'audio') newItem = { ...baseItem, audioSrc: fileUrlRef.current }
     else if (selectedType === 'document') {
       const docSubtype = inferDocumentSubtypeFromFile(selectedFile)
@@ -800,7 +818,12 @@ export function FileUploadFlow({ open, onClose, onAddItem }) {
                   <img src={fileUrl} alt={selectedFile.name} className="context-upload-file-preview-image" />
                 ) : null}
                 {selectedType === 'video' ? (
-                  <video src={fileUrl} controls className="context-upload-file-preview-video" />
+                  <div className="context-upload-file-preview-doc">
+                    <p>{selectedFile.name}</p>
+                    <p className="context-upload-file-preview-doc-sub">
+                      Video preview appears after server encoding to playback-safe MP4.
+                    </p>
+                  </div>
                 ) : null}
                 {selectedType === 'audio' ? (
                   <audio src={fileUrl} controls className="context-upload-file-preview-audio" />
@@ -909,12 +932,13 @@ export function FileUploadFlow({ open, onClose, onAddItem }) {
               <button
                 type="button"
                 className="context-upload-btn context-upload-btn--primary"
-                disabled={!selectedFile || !fileUrl || !selectedType}
+                disabled={!selectedFile || !fileUrl || !selectedType || isUploading}
                 onClick={handleAdd}
               >
-                Add to library
+                {isUploading ? 'Encoding video…' : 'Add to library'}
               </button>
             </div>
+            {uploadError ? <p className="context-upload-file-meta">{uploadError}</p> : null}
             <p className="context-upload-wizard-foot">Press Esc to cancel.</p>
           </>
         )}

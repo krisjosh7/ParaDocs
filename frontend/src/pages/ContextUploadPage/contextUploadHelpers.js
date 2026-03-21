@@ -51,3 +51,32 @@ export function inferDocumentSubtypeFromFile(file) {
   ) return 'docx'
   return 'generic'
 }
+
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
+
+export async function uploadVideoForPlayback(file) {
+  const body = new FormData()
+  body.append('file', file)
+
+  const res = await fetch(`${API_BASE}/upload/video`, {
+    method: 'POST',
+    body,
+  })
+
+  let payload = null
+  try {
+    payload = await res.json()
+  } catch {
+    payload = null
+  }
+
+  if (!res.ok) {
+    throw new Error(payload?.detail || `Video upload failed (${res.status})`)
+  }
+
+  if (!payload?.url) {
+    throw new Error('Server did not return a video URL.')
+  }
+
+  return payload.url
+}
