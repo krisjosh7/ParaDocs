@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 # Routers — each subgraph registers its own router here
-# from research.router import router as research_router  # uncomment when ready
+from research.router import router as research_router
 
 app = FastAPI()
 SESSION_MEDIA_DIR = Path(tempfile.mkdtemp(prefix="paradocs-media-"))
@@ -42,7 +42,7 @@ def on_shutdown() -> None:
     cleanup_session_media()
 
 
-# app.include_router(research_router, prefix="/research")  # uncomment when ready
+app.include_router(research_router)
 
 
 @app.get("/health")
