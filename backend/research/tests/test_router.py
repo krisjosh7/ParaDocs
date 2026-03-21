@@ -572,6 +572,85 @@ async def test_integration_search_real_courtlistener(client):
     assert all("case_name" in r for r in results)
 
 
+# ---------------------------------------------------------------------------
+# POST /research/run  — end-to-end graph trigger
+# ---------------------------------------------------------------------------
+
+FINAL_STATE = {
+    "case_id": "case_1",
+    "case_facts": "Contract dispute.",
+    "iteration": 2,
+    "stop_reason": "max_iter",
+    "queries_run": ["query A", "query B"],
+    "queries_to_run": [],
+    "raw_results": [],
+    "scored_results": [],
+    "all_stored_results": [
+        {**SAMPLE_RESULT, "rag_doc_id": "doc-1"},
+        {**SAMPLE_RESULT_2, "rag_doc_id": "doc-2"},
+    ],
+    "seen_result_ids": ["cluster_001", "cluster_002"],
+    "top_result_ids": ["op_001"],
+}
+
+
+@pytest.mark.asyncio
+async def test_run_research_returns_200_with_stop_reason(client):
+    with patch("research.graph.research_subgraph") as mock_graph:
+        mock_graph.ainvoke = AsyncMock(return_value=FINAL_STATE)
+        r = await client.post("/research/run", json={"case_id": "case_1"})
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["stop_reason"] == "max_iter"
+    assert data["iteration"] == 2
+    assert data["case_id"] == "case_1"
+
+
+@pytest.mark.asyncio
+async def test_run_research_returns_all_stored_results(client):
+    with patch("research.graph.research_subgraph") as mock_graph:
+        mock_graph.ainvoke = AsyncMock(return_value=FINAL_STATE)
+        r = await client.post("/research/run", json={"case_id": "case_1"})
+
+    stored = r.json()["all_stored_results"]
+    assert len(stored) == 2
+    assert stored[0]["rag_doc_id"] == "doc-1"
+    assert stored[1]["rag_doc_id"] == "doc-2"
+
+
+@pytest.mark.asyncio
+async def test_run_research_initialises_empty_state(client):
+    """The /run endpoint must pass a clean initial state to ainvoke."""
+    captured = {}
+
+    async def capture_invoke(state):
+        captured["initial"] = state
+        return FINAL_STATE
+
+    with patch("research.graph.research_subgraph") as mock_graph:
+        mock_graph.ainvoke = capture_invoke
+        await client.post("/research/run", json={"case_id": "case_99"})
+
+    init = captured["initial"]
+    assert init["case_id"] == "case_99"
+    assert init["iteration"] == 0
+    assert init["stop_reason"] is None
+    assert init["queries_run"] == []
+    assert init["all_stored_results"] == []
+    assert init["seen_result_ids"] == []
+
+
+@pytest.mark.asyncio
+async def test_run_research_422_missing_case_id(client):
+    r = await client.post("/research/run", json={})
+    assert r.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Integration: real CourtListener + Ollama, mocked RAG
+# ---------------------------------------------------------------------------
+
 @pytest.mark.integration
 async def test_integration_full_chain_generate_search_score(client):
     """

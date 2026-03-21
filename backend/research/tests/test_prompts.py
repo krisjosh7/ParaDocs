@@ -330,6 +330,7 @@ def test_run_score_result_reason_nonempty():
     assert len(reason.strip()) > 0
 
 
+@pytest.mark.integration
 @ollama_required
 @model_required
 def test_run_score_result_relevant_scores_higher_than_irrelevant():

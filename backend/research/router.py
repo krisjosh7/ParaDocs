@@ -81,6 +81,16 @@ class DecideResponse(BaseModel):
     stop_reason: str | None
 
 
+class RunResearchRequest(BaseModel):
+    case_id: str
+
+class RunResearchResponse(BaseModel):
+    case_id: str
+    stop_reason: str
+    all_stored_results: list[dict]
+    iteration: int
+
+
 # ---------------------------------------------------------------------------
 # POST /research/load-context
 # ---------------------------------------------------------------------------
@@ -333,3 +343,45 @@ async def decide(req: DecideRequest):
         return DecideResponse(decision="stop", stop_reason="no_new_results")
 
     return DecideResponse(decision="continue", stop_reason=None)
+
+
+# ---------------------------------------------------------------------------
+# POST /research/run  — single entry point that drives the full graph
+# ---------------------------------------------------------------------------
+
+@router.post("/run", response_model=RunResearchResponse)
+async def run_research(req: RunResearchRequest):
+    """
+    Kicks off the full research pipeline for a given case.
+    Initialises ResearchState and invokes the LangGraph subgraph, which
+    loops through load-context → generate-queries → search → score → store
+    → decide until a termination condition is met.
+
+    The lazy import of research_subgraph avoids a circular import
+    (graph.py imports from this module).
+    """
+    from research.graph import research_subgraph
+    from research.state import ResearchState
+
+    initial: ResearchState = {
+        "case_id": req.case_id,
+        "case_facts": "",
+        "iteration": 0,
+        "stop_reason": None,
+        "queries_run": [],
+        "queries_to_run": [],
+        "raw_results": [],
+        "scored_results": [],
+        "all_stored_results": [],
+        "seen_result_ids": [],
+        "top_result_ids": [],
+    }
+
+    final = await research_subgraph.ainvoke(initial)
+
+    return RunResearchResponse(
+        case_id=req.case_id,
+        stop_reason=final["stop_reason"],
+        all_stored_results=final["all_stored_results"],
+        iteration=final["iteration"],
+    )
