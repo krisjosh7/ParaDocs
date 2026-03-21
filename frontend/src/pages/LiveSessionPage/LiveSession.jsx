@@ -1,94 +1,45 @@
 import { useState, useEffect, useRef } from 'react'
 import './LiveSession.css'
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
-const MOCK_TRANSCRIPT_LINES = [
-  { speaker: 'Attorney', text: "Hi, I'm Sarah Chen, I'll be representing you today. Before we start, just so you know this conversation may be recorded for our records — is that okay?" },
-  { speaker: 'Client',   text: "Yeah, that's totally fine." },
-  { speaker: 'Attorney', text: "Great. And can you just confirm your name and the address of the property in question?" },
-  { speaker: 'Client',   text: "Sure — Marcus Webb, 4410 Riverside Drive, Apartment 2B." },
-  { speaker: 'Attorney', text: "Perfect. Okay, tell me in your own words when you first noticed the problem." },
-  { speaker: 'Client',   text: "It started around June — there was black mold on the bathroom ceiling and the walls near the window." },
-  { speaker: 'Attorney', text: "Did you notify your landlord in writing at any point?" },
-  { speaker: 'Client',   text: "Yeah, I sent texts and I also sent an email in July. I have screenshots of everything." },
-  { speaker: 'Attorney', text: "And did he ever send anyone to fix it?" },
-  { speaker: 'Client',   text: "He kept saying he'd send someone but nobody ever came. This went on for months." },
-  { speaker: 'Attorney', text: "How long have you lived at that address overall?" },
-  { speaker: 'Client',   text: "About three years. Moved in October 2022." },
-  { speaker: 'Attorney', text: "You mentioned your daughter got sick — do you have medical records from that?" },
-  { speaker: 'Client',   text: "Yes, she was hospitalized in September. The doctor said it was likely mold-related. I have the discharge paperwork." },
-  { speaker: 'Attorney', text: "Good. And were you current on rent the entire time this was happening?" },
-  { speaker: 'Client',   text: "Every single month, never missed a payment. I have bank statements going back two years." },
-]
+async function fetchSurfaced(caseId, text, lineIndex) {
+  try {
+    const res = await fetch(`${API_BASE}/session/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_id: caseId, text, line_index: lineIndex }),
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    // Normalise snake_case → camelCase for the frontend
+    return (data.items ?? []).map((item) => ({
+      id: item.id,
+      afterLine: item.after_line,
+      type: item.type,
+      status: item.status,
+      label: item.label,
+      excerpt: item.excerpt ?? null,
+      relevance: item.relevance ?? null,
+    }))
+  } catch {
+    return []
+  }
+}
 
-// afterLine is the 0-based index of the transcript line that triggers surfacing.
-// Lines 0-3 are intake/admin — nothing surfaces for those.
-const MOCK_SURFACED = [
-  {
-    id: 1,
-    afterLine: 5,  // client mentions mold in June
-    type: 'document',
-    status: 'hit',
-    label: 'lease_agreement.pdf — §12',
-    excerpt: '"Landlord shall maintain premises in habitable condition and remedy reported defects within 14 days of written notice."',
-    relevance: 0.94,
-  },
-  {
-    id: 2,
-    afterLine: 7,  // client mentions texts + email in July
-    type: 'document',
-    status: 'hit',
-    label: 'client_emails.pdf — Jul 14 2025',
-    excerpt: '"...the mold has been present for over a month and my family\'s health is at risk. Please send a repair crew this week."',
-    relevance: 0.91,
-  },
-  {
-    id: 3,
-    afterLine: 7,  // same trigger — written notice → habitability case law
-    type: 'caselaw',
-    status: 'hit',
-    label: 'Javins v. First National Realty (1970)',
-    excerpt: 'Landlord\'s failure to remedy reported habitability defects constitutes breach of the implied warranty of habitability.',
-    relevance: 0.88,
-  },
-  {
-    id: 4,
-    afterLine: 9,  // client says nobody came — triggers statute search
-    type: 'research',
-    status: 'searching',
-    label: 'Searching: landlord notice response time Virginia statute...',
-    excerpt: null,
-    relevance: null,
-  },
-  {
-    id: 5,
-    afterLine: 13, // client mentions hospitalization
-    type: 'document',
-    status: 'hit',
-    label: 'hospital_discharge.pdf — Sep 3 2025',
-    excerpt: '"Patient presented with respiratory symptoms consistent with prolonged mold exposure. Recommend immediate relocation."',
-    relevance: 0.96,
-  },
-  {
-    id: 6,
-    afterLine: 13, // same trigger — medical damages case law
-    type: 'caselaw',
-    status: 'hit',
-    label: 'Sargent v. Ross (NH 1973)',
-    excerpt: 'Landlord held liable for tenant medical damages when habitability defect was reported and ignored.',
-    relevance: 0.82,
-  },
-  {
-    id: 7,
-    afterLine: 15, // client confirms rent payments — tenant remedies statute
-    type: 'research',
-    status: 'hit',
-    label: 'VA Code § 55.1-1234 — Tenant remedies',
-    excerpt: 'Tenant may pursue rent escrow, repair-and-deduct, or termination of lease when landlord fails to remedy after written notice.',
-    relevance: 0.89,
-  },
-]
+async function transcribeChunk(blob) {
+  try {
+    const formData = new FormData()
+    formData.append('audio', blob, 'chunk.webm')
+    const res = await fetch(`${API_BASE}/session/transcribe`, { method: 'POST', body: formData })
+    if (!res.ok) return ''
+    const { text } = await res.json()
+    return text ?? ''
+  } catch {
+    return ''
+  }
+}
+
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -120,7 +71,7 @@ function SurfacedCard({ item, onJumpTo }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function LiveSession() {
+export default function LiveSession({ caseId = 'demo-case' }) {
   const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState([])
   const [surfaced, setSurfaced] = useState([])
@@ -130,7 +81,8 @@ export default function LiveSession() {
   const lineRefsRef = useRef({})
   const lineIndexRef = useRef(0)
   const timerRef = useRef(null)
-  const lineTimerRef = useRef(null)
+  const streamRef = useRef(null)
+  const recorderRef = useRef(null)
 
   function handleJumpTo(lineIndex) {
     const el = lineRefsRef.current[lineIndex]
@@ -145,47 +97,53 @@ export default function LiveSession() {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [transcript])
 
-  // Simulate transcript lines + surfacing during recording
-  useEffect(() => {
-    if (!isRecording) {
+  async function handleToggle() {
+    if (isRecording) {
+      recorderRef.current?.stop()
+      streamRef.current?.getTracks().forEach((t) => t.stop())
       clearInterval(timerRef.current)
-      clearInterval(lineTimerRef.current)
+      setIsRecording(false)
       return
     }
 
-    timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
+    // Reset state
+    setTranscript([])
+    setSurfaced([])
+    setElapsed(0)
+    lineIndexRef.current = 0
 
-    lineTimerRef.current = setInterval(() => {
-      const i = lineIndexRef.current
-      if (i < MOCK_TRANSCRIPT_LINES.length) {
-        setTranscript((t) => [...t, MOCK_TRANSCRIPT_LINES[i]])
-        lineIndexRef.current = i + 1
+    // Request microphone
+    let stream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch {
+      alert('Microphone access is required for live transcription.')
+      return
+    }
+    streamRef.current = stream
 
-        const toSurface = MOCK_SURFACED.filter((s) => s.afterLine === i)
-        toSurface.forEach((item, offset) => {
-          setTimeout(() => {
-            setSurfaced((s) => [...s, item])
-          }, 900 + offset * 600)
+    const recorder = new MediaRecorder(stream)
+    recorderRef.current = recorder
+
+    recorder.ondataavailable = async (e) => {
+      if (!e.data || e.data.size === 0) return
+      const text = await transcribeChunk(e.data)
+      if (!text) return
+
+      const lineIndex = lineIndexRef.current
+      lineIndexRef.current += 1
+      setTranscript((t) => [...t, { speaker: 'Speaking', text }])
+
+      fetchSurfaced(caseId, text, lineIndex).then((items) => {
+        items.forEach((item, offset) => {
+          setTimeout(() => setSurfaced((s) => [...s, item]), 300 + offset * 400)
         })
-      }
-    }, 3000)
-
-    return () => {
-      clearInterval(timerRef.current)
-      clearInterval(lineTimerRef.current)
+      })
     }
-  }, [isRecording])
 
-  function handleToggle() {
-    if (isRecording) {
-      setIsRecording(false)
-    } else {
-      setTranscript([])
-      setSurfaced([])
-      setElapsed(0)
-      lineIndexRef.current = 0
-      setIsRecording(true)
-    }
+    timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
+    recorder.start(5000) // send a chunk every 5 seconds
+    setIsRecording(true)
   }
 
   const mins = String(Math.floor(elapsed / 60)).padStart(2, '0')
