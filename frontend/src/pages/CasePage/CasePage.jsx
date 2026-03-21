@@ -6,6 +6,7 @@ import { VerticalTimeline, VerticalTimelineElement } from 'react-vertical-timeli
 import 'react-vertical-timeline-component/style.min.css'
 import './CasePage.css'
 import ContextUploadPage from '../ContextUploadPage/ContextUploadPage.jsx'
+import LiveSession from '../LiveSessionPage/LiveSession.jsx'
 
 const STATUS_ORDER = ['done', 'in_progress', 'upcoming']
 const STATUS_LABELS = { done: 'Done', in_progress: 'In Progress', upcoming: 'Upcoming' }
@@ -58,14 +59,6 @@ const timelineIconStyle = {
 }
 
 const TABS = ['Case Dashboard', 'Discovery', 'Live Session']
-
-function LiveSession() {
-  return (
-    <main className="main-content case-page-content">
-      <p className="cases-empty">Live Session view is not available yet.</p>
-    </main>
-  )
-}
 
 export default function CasePage({ cases }) {
   const { caseId } = useParams()
