@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 # Routers — each subgraph registers its own router here
 from research.router import router as research_router
+from session.router import router as session_router
 
 app = FastAPI()
 SESSION_MEDIA_DIR = Path(tempfile.mkdtemp(prefix="paradocs-media-"))
@@ -43,6 +44,7 @@ def on_shutdown() -> None:
 
 
 app.include_router(research_router)
+app.include_router(session_router)
 
 
 @app.get("/health")
