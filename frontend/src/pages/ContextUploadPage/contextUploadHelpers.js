@@ -54,29 +54,94 @@ export function inferDocumentSubtypeFromFile(file) {
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
 
-export async function uploadVideoForPlayback(file) {
-  const body = new FormData()
-  body.append('file', file)
+export function normalizeContextItemFromApi(row) {
+  if (!row || typeof row !== 'object') return null
+  const item = {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    caption: row.caption || '',
+    addedLabel: row.addedLabel,
+    fileName: row.fileName ?? undefined,
+    textPreview: row.textPreview ?? undefined,
+    textFull: row.textFull ?? undefined,
+    docSubtype: row.docSubtype ?? undefined,
+    uploadedFile: row.uploadedFile,
+  }
+  if (row.imageSrc) item.imageSrc = row.imageSrc
+  if (row.videoSrc) item.videoSrc = row.videoSrc
+  if (row.audioSrc) item.audioSrc = row.audioSrc
+  if (row.documentSrc) item.documentSrc = row.documentSrc
+  return item
+}
 
-  const res = await fetch(`${API_BASE}/upload/video`, {
-    method: 'POST',
-    body,
-  })
-
+export async function fetchContextsForCase(caseId, { q } = {}) {
+  const params = new URLSearchParams()
+  if (q && q.trim()) params.set('q', q.trim())
+  const qs = params.toString()
+  const url = `${API_BASE}/cases/${encodeURIComponent(caseId)}/contexts${qs ? `?${qs}` : ''}`
+  const res = await fetch(url)
   let payload = null
   try {
     payload = await res.json()
   } catch {
     payload = null
   }
-
   if (!res.ok) {
-    throw new Error(payload?.detail || `Video upload failed (${res.status})`)
+    throw new Error(payload?.detail || `Failed to load contexts (${res.status})`)
   }
-
-  if (!payload?.url) {
-    throw new Error('Server did not return a video URL.')
-  }
-
-  return payload.url
+  const items = Array.isArray(payload?.items) ? payload.items : []
+  return items.map(normalizeContextItemFromApi).filter(Boolean)
 }
+
+export async function createTextContext(caseId, { title, caption, textFull }) {
+  const body = new FormData()
+  body.append('context_type', 'text')
+  body.append('title', title || '')
+  body.append('caption', caption || '')
+  body.append('text_full', textFull || '')
+  body.append('doc_subtype', '')
+  const res = await fetch(`${API_BASE}/cases/${encodeURIComponent(caseId)}/contexts`, {
+    method: 'POST',
+    body,
+  })
+  let payload = null
+  try {
+    payload = await res.json()
+  } catch {
+    payload = null
+  }
+  if (!res.ok) {
+    throw new Error(
+      typeof payload?.detail === 'string' ? payload.detail : `Save failed (${res.status})`,
+    )
+  }
+  return normalizeContextItemFromApi(payload)
+}
+
+export async function createFileContext(caseId, file, { type, title, caption, docSubtype }) {
+  const body = new FormData()
+  body.append('file', file)
+  body.append('context_type', type)
+  body.append('title', title || '')
+  body.append('caption', caption || '')
+  body.append('text_full', '')
+  body.append('doc_subtype', docSubtype || '')
+  const res = await fetch(`${API_BASE}/cases/${encodeURIComponent(caseId)}/contexts`, {
+    method: 'POST',
+    body,
+  })
+  let payload = null
+  try {
+    payload = await res.json()
+  } catch {
+    payload = null
+  }
+  if (!res.ok) {
+    throw new Error(
+      typeof payload?.detail === 'string' ? payload.detail : `Upload failed (${res.status})`,
+    )
+  }
+  return normalizeContextItemFromApi(payload)
+}
+

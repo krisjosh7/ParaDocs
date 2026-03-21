@@ -6,7 +6,6 @@ import {
   inferContextTypeFromFile,
   makeTextPreview,
   newContextId,
-  uploadVideoForPlayback,
 } from './contextUploadHelpers'
 import DocxPreview from './DocxPreview'
 import './ContextUploadWizard.css'
@@ -54,7 +53,7 @@ export function TextUploadFlow({ open, onClose, onAddItem }) {
     setDraft({ body: '', title: '', caption: '' })
   }, [open])
 
-  const handleAdd = useCallback(() => {
+  const handleAdd = useCallback(async () => {
     const body = draft.body.replace(/\r\n/g, '\n')
     const title = draft.title.trim() || 'Untitled note'
     const caption = draft.caption.trim()
@@ -67,8 +66,12 @@ export function TextUploadFlow({ open, onClose, onAddItem }) {
       textFull: body,
       ...(caption ? { caption } : {}),
     }
-    onAddItem(newItem)
-    onClose()
+    try {
+      await onAddItem(newItem)
+      onClose()
+    } catch {
+      // Parent surfaces error; keep wizard open
+    }
   }, [draft, onAddItem, onClose])
 
   const canContinueBody = draft.body.trim().length > 0
@@ -431,7 +434,7 @@ export function AudioUploadFlow({ open, onClose, onAddItem }) {
     setStep(1)
   }, [cleanup])
 
-  const handleAdd = useCallback(() => {
+  const handleAdd = useCallback(async () => {
     const title = draft.title.trim() || 'Untitled audio'
     const caption = draft.caption.trim()
 
@@ -440,15 +443,28 @@ export function AudioUploadFlow({ open, onClose, onAddItem }) {
     committedRef.current = true
     stopTracks()
 
-    onAddItem({
-      id: newContextId(),
-      type: 'audio',
-      title,
-      addedLabel: formatAddedLabelNow(),
-      audioSrc: audioUrlRef.current,
-      ...(caption ? { caption } : {}),
-    })
-    onClose()
+    let audioBlob = null
+    try {
+      const res = await fetch(audioUrlRef.current)
+      audioBlob = await res.blob()
+    } catch {
+      audioBlob = null
+    }
+
+    try {
+      await onAddItem({
+        id: newContextId(),
+        type: 'audio',
+        title,
+        addedLabel: formatAddedLabelNow(),
+        audioSrc: audioUrlRef.current,
+        _audioBlob: audioBlob,
+        ...(caption ? { caption } : {}),
+      })
+      onClose()
+    } catch {
+      // Parent surfaces error
+    }
   }, [draft.caption, draft.title, onAddItem, onClose, stopTracks])
 
   const canContinueToMeta = Boolean(audioUrl)
@@ -704,44 +720,28 @@ export function FileUploadFlow({ open, onClose, onAddItem }) {
 
     const title = draft.title.trim() || selectedFile.name || 'Untitled file'
     const caption = draft.caption.trim()
-    const baseItem = {
-      id: newContextId(),
-      type: selectedType,
-      title,
-      addedLabel: formatAddedLabelNow(),
-      uploadedFile: true,
-      fileName: selectedFile.name,
-      ...(caption ? { caption } : {}),
-    }
+    const docSubtype = selectedType === 'document' ? inferDocumentSubtypeFromFile(selectedFile) : undefined
 
-    let newItem = baseItem
-    if (selectedType === 'image') newItem = { ...baseItem, imageSrc: fileUrlRef.current }
-    else if (selectedType === 'video') {
-      setIsUploading(true)
-      setUploadError('')
-      try {
-        const serverVideoUrl = await uploadVideoForPlayback(selectedFile)
-        newItem = { ...baseItem, videoSrc: serverVideoUrl, fileName: `${title}.mp4` }
-      } catch (err) {
-        setUploadError(err instanceof Error ? err.message : 'Failed to encode video on server.')
-        return
-      } finally {
-        setIsUploading(false)
-      }
-    }
-    else if (selectedType === 'audio') newItem = { ...baseItem, audioSrc: fileUrlRef.current }
-    else if (selectedType === 'document') {
-      const docSubtype = inferDocumentSubtypeFromFile(selectedFile)
-      newItem = {
-        ...baseItem,
-        documentSrc: fileUrlRef.current,
+    setIsUploading(true)
+    setUploadError('')
+    try {
+      await onAddItem({
+        id: newContextId(),
+        type: selectedType,
+        title,
+        addedLabel: formatAddedLabelNow(),
+        uploadedFile: true,
         fileName: selectedFile.name,
-        docSubtype,
-      }
+        sourceFile: selectedFile,
+        ...(docSubtype ? { docSubtype } : {}),
+        ...(caption ? { caption } : {}),
+      })
+      onClose()
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed.')
+    } finally {
+      setIsUploading(false)
     }
-
-    onAddItem(newItem)
-    onClose()
   }, [draft.caption, draft.title, onAddItem, onClose, selectedFile, selectedType])
 
   const canContinue = Boolean(selectedFile && fileUrl && selectedType)
@@ -820,9 +820,7 @@ export function FileUploadFlow({ open, onClose, onAddItem }) {
                 {selectedType === 'video' ? (
                   <div className="context-upload-file-preview-doc">
                     <p>{selectedFile.name}</p>
-                    <p className="context-upload-file-preview-doc-sub">
-                      Video preview appears after server encoding to playback-safe MP4.
-                    </p>
+                    <p className="context-upload-file-preview-doc-sub">Video preview after upload to case library.</p>
                   </div>
                 ) : null}
                 {selectedType === 'audio' ? (
@@ -935,7 +933,7 @@ export function FileUploadFlow({ open, onClose, onAddItem }) {
                 disabled={!selectedFile || !fileUrl || !selectedType || isUploading}
                 onClick={handleAdd}
               >
-                {isUploading ? 'Encoding video…' : 'Add to library'}
+                {isUploading ? 'Uploading…' : 'Add to library'}
               </button>
             </div>
             {uploadError ? <p className="context-upload-file-meta">{uploadError}</p> : null}
