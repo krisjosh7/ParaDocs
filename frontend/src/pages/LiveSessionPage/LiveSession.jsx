@@ -3,16 +3,15 @@ import './LiveSession.css'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
-async function fetchSurfaced(caseId, text, lineIndex) {
+async function fetchSurfaced(caseId, text, lineIndex, context = []) {
   try {
     const res = await fetch(`${API_BASE}/session/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ case_id: caseId, text, line_index: lineIndex }),
+      body: JSON.stringify({ case_id: caseId, text, line_index: lineIndex, context }),
     })
     if (!res.ok) return []
     const data = await res.json()
-    // Normalise snake_case → camelCase for the frontend
     return (data.items ?? []).map((item) => ({
       id: item.id,
       afterLine: item.after_line,
@@ -21,6 +20,7 @@ async function fetchSurfaced(caseId, text, lineIndex) {
       label: item.label,
       excerpt: item.excerpt ?? null,
       relevance: item.relevance ?? null,
+      url: item.url ?? null,
     }))
   } catch {
     return []
@@ -43,33 +43,86 @@ async function transcribeChunk(blob) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SurfacedCard({ item, onJumpTo }) {
+function SurfacedCard({ item, onJumpTo, onDelete, onSave }) {
+  const [expanded, setExpanded] = useState(false)
+  const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const icons = { document: '📄', caselaw: '⚖️', research: '🔍' }
-  const isClickable = item.status !== 'searching' && item.afterLine != null
+  const isSearching = item.status === 'searching'
+  const canExpand = !isSearching
+  const canJump = !isSearching && item.afterLine != null
+
+  async function handleSave(e) {
+    e.stopPropagation()
+    setSaveState('saving')
+    const ok = await onSave(item)
+    setSaveState(ok ? 'saved' : 'error')
+  }
+
+  const saveLabel = { idle: '+ Save to context', saving: 'Saving…', saved: '✓ Saved', error: 'Failed' }
 
   return (
     <div
-      className={`surfaced-card surfaced-card--${item.status}${isClickable ? ' surfaced-card--clickable' : ''}`}
-      onClick={isClickable ? () => onJumpTo(item.afterLine) : undefined}
-      title={isClickable ? 'Jump to source in transcript' : undefined}
+      className={`surfaced-card surfaced-card--${item.status}${canExpand ? ' surfaced-card--clickable' : ''}${expanded ? ' surfaced-card--expanded' : ''}`}
+      onClick={canExpand ? () => setExpanded((e) => !e) : undefined}
     >
       <div className="surfaced-card-header">
-        <span className="surfaced-icon">{icons[item.type]}</span>
+        <span className="surfaced-icon">{icons[item.type] ?? '🔍'}</span>
         <span className="surfaced-label">{item.label}</span>
+        {item.type === 'caselaw' && (
+          <span className="surfaced-search-tag">case search</span>
+        )}
         {item.relevance && (
           <span className="surfaced-relevance">{Math.round(item.relevance * 100)}%</span>
         )}
-        {isClickable && <span className="surfaced-jump-hint">↑ jump</span>}
+        {isSearching && <div className="surfaced-spinner" aria-label="Searching" />}
+        {canJump && (
+          <button
+            className="surfaced-jump-btn"
+            onClick={(e) => { e.stopPropagation(); onJumpTo(item.afterLine) }}
+            title="Jump to source in transcript"
+          >
+            ↑ jump
+          </button>
+        )}
       </div>
-      {item.excerpt && <p className="surfaced-excerpt">{item.excerpt}</p>}
-      {item.status === 'searching' && (
-        <div className="surfaced-spinner" aria-label="Searching" />
+      {expanded && (
+        <div className="surfaced-card-body">
+          {item.excerpt && <p className="surfaced-excerpt">{item.excerpt}</p>}
+          {item.url && (
+            <a
+              className="surfaced-link"
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View full source ↗
+            </a>
+          )}
+          <div className="surfaced-card-actions">
+            <button
+              className={`surfaced-action-btn surfaced-action-btn--save${saveState === 'saved' ? ' surfaced-action-btn--done' : ''}${saveState === 'error' ? ' surfaced-action-btn--error' : ''}`}
+              onClick={handleSave}
+              disabled={saveState === 'saving' || saveState === 'saved'}
+            >
+              {saveLabel[saveState]}
+            </button>
+            <button
+              className="surfaced-action-btn surfaced-action-btn--delete"
+              onClick={(e) => { e.stopPropagation(); onDelete(item.id) }}
+            >
+              Remove
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
+
+const CHUNK_MS = 5000 // record this many ms, stop, transcribe, restart
 
 export default function LiveSession({ caseId = 'demo-case' }) {
   const [isRecording, setIsRecording] = useState(false)
@@ -82,7 +135,32 @@ export default function LiveSession({ caseId = 'demo-case' }) {
   const lineIndexRef = useRef(0)
   const timerRef = useRef(null)
   const streamRef = useRef(null)
-  const recorderRef = useRef(null)
+  const activeRef = useRef(false)    // true while session is live
+  const transcriptRef = useRef([])   // mirrors transcript state for use inside closures
+  const startTimeRef = useRef(null)  // wall-clock ms when recording began
+
+  function handleDelete(itemId) {
+    setSurfaced((s) => s.filter((item) => item.id !== itemId))
+  }
+
+  async function handleSave(item) {
+    try {
+      const res = await fetch(`${API_BASE}/session/save-to-context`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          case_id: caseId,
+          doc_id: item.id,
+          text: item.excerpt ?? item.label,
+          source: item.label,
+          url: item.url ?? null,
+        }),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }
 
   function handleJumpTo(lineIndex) {
     const el = lineRefsRef.current[lineIndex]
@@ -97,9 +175,71 @@ export default function LiveSession({ caseId = 'demo-case' }) {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [transcript])
 
+  // Record one CHUNK_MS chunk, transcribe it, then restart if still active.
+  // Each stop/start cycle produces a complete standalone audio file that
+  // ffmpeg (and therefore Whisper) can decode without an EBML header issue.
+  function startChunk(stream) {
+    const chunks = []
+    const recorder = new MediaRecorder(stream)
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data)
+    }
+
+    recorder.onstop = async () => {
+      if (chunks.length > 0) {
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
+        const text = await transcribeChunk(blob)
+        if (text) {
+          const lineIndex = lineIndexRef.current
+          lineIndexRef.current += 1
+          const elapsedSec = startTimeRef.current ? Math.floor((Date.now() - startTimeRef.current) / 1000) : 0
+          const mm = String(Math.floor(elapsedSec / 60)).padStart(2, '0')
+          const ss = String(elapsedSec % 60).padStart(2, '0')
+          const speaker = `${mm}:${ss}`
+          const context = transcriptRef.current.slice(-2).map((l) => l.text)
+          transcriptRef.current = [...transcriptRef.current, { speaker, text }]
+          setTranscript((t) => [...t, { speaker, text }])
+
+          // Show a searching placeholder immediately
+          const searchingId = `searching-${lineIndex}`
+          const preview = text.length > 48 ? text.slice(0, 48) + '…' : text
+          setSurfaced((s) => [...s, {
+            id: searchingId,
+            afterLine: lineIndex,
+            type: 'research',
+            status: 'searching',
+            label: `Searching: ${preview}`,
+            excerpt: null,
+            relevance: null,
+            url: null,
+            reason: null,
+          }])
+
+          fetchSurfaced(caseId, text, lineIndex, context).then((items) => {
+            setSurfaced((s) => {
+              const without = s.filter((item) => item.id !== searchingId)
+              const existingIds = new Set(without.map((item) => item.id))
+              const fresh = items.filter((item) => !existingIds.has(item.id))
+              return [...without, ...fresh]
+            })
+          })
+        }
+      }
+      // Restart for next chunk if session is still active
+      if (activeRef.current) startChunk(stream)
+    }
+
+    recorder.start()
+    setTimeout(() => {
+      if (recorder.state === 'recording') recorder.stop()
+    }, CHUNK_MS)
+  }
+
   async function handleToggle() {
     if (isRecording) {
-      recorderRef.current?.stop()
+      activeRef.current = false
+      startTimeRef.current = null
       streamRef.current?.getTracks().forEach((t) => t.stop())
       clearInterval(timerRef.current)
       setIsRecording(false)
@@ -111,6 +251,7 @@ export default function LiveSession({ caseId = 'demo-case' }) {
     setSurfaced([])
     setElapsed(0)
     lineIndexRef.current = 0
+    transcriptRef.current = []
 
     // Request microphone
     let stream
@@ -121,28 +262,11 @@ export default function LiveSession({ caseId = 'demo-case' }) {
       return
     }
     streamRef.current = stream
-
-    const recorder = new MediaRecorder(stream)
-    recorderRef.current = recorder
-
-    recorder.ondataavailable = async (e) => {
-      if (!e.data || e.data.size === 0) return
-      const text = await transcribeChunk(e.data)
-      if (!text) return
-
-      const lineIndex = lineIndexRef.current
-      lineIndexRef.current += 1
-      setTranscript((t) => [...t, { speaker: 'Speaking', text }])
-
-      fetchSurfaced(caseId, text, lineIndex).then((items) => {
-        items.forEach((item, offset) => {
-          setTimeout(() => setSurfaced((s) => [...s, item]), 300 + offset * 400)
-        })
-      })
-    }
+    activeRef.current = true
+    startTimeRef.current = Date.now()
 
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
-    recorder.start(5000) // send a chunk every 5 seconds
+    startChunk(stream)
     setIsRecording(true)
   }
 
@@ -202,7 +326,7 @@ export default function LiveSession({ caseId = 'demo-case' }) {
           ) : (
             <div className="surfaced-list">
               {surfaced.map((item) => (
-                <SurfacedCard key={item.id} item={item} onJumpTo={handleJumpTo} />
+                <SurfacedCard key={item.id} item={item} onJumpTo={handleJumpTo} onDelete={handleDelete} onSave={handleSave} />
               ))}
             </div>
           )}

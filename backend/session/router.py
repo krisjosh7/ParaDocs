@@ -6,7 +6,7 @@ from typing import Optional
 
 import httpx
 import whisper
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from research.courtlistener import search_opinions
@@ -18,6 +18,31 @@ RAG_BASE = os.environ.get("RAG_BASE_URL", "http://localhost:8001")
 # Don't bother querying for one-word answers like "Yes" or "Okay"
 MIN_TEXT_LENGTH = 20
 
+# Spoken filler words that add no signal to a legal search query
+_FILLERS = {
+    "um", "uh", "like", "you know", "i mean", "so", "well", "actually",
+    "basically", "right", "okay", "yeah", "yes", "no", "good", "great",
+    "sure", "i", "my", "we", "they", "it", "the", "a", "an", "and",
+    "but", "or", "just", "really", "very", "kind of", "sort of",
+}
+
+
+def _clean_query(text: str) -> str:
+    """Strip filler words and short tokens to leave substantive legal terms."""
+    words = text.lower().split()
+    kept = [w.strip(".,?!;:\"'") for w in words if w.strip(".,?!;:\"'") not in _FILLERS]
+    meaningful = [w for w in kept if len(w) > 2]
+    return " ".join(meaningful)
+
+
+def _build_search_query(text: str, context: list[str]) -> str:
+    """
+    Combine the last context lines with the current text, clean filler words.
+    Using context gives CourtListener more signal than a single spoken sentence.
+    """
+    combined = " ".join(context[-2:] + [text])
+    return _clean_query(combined)
+
 # Load once at startup — takes ~5s for "base", stays in memory for the session
 _whisper_model = whisper.load_model("base")
 
@@ -28,8 +53,9 @@ _whisper_model = whisper.load_model("base")
 
 class SessionQueryRequest(BaseModel):
     case_id: str
-    text: str        # the latest transcript line
-    line_index: int  # 0-based index in the transcript — echoed back in items
+    text: str              # the latest transcript line
+    line_index: int        # 0-based index in the transcript — echoed back in items
+    context: list[str] = []  # last N transcript lines for richer search queries
 
 
 class SurfacedItem(BaseModel):
@@ -40,10 +66,19 @@ class SurfacedItem(BaseModel):
     label: str
     excerpt: Optional[str]
     relevance: Optional[float]
+    url: Optional[str]   # direct link to the source
 
 
 class SessionQueryResponse(BaseModel):
     items: list[SurfacedItem]
+
+
+class SaveToContextRequest(BaseModel):
+    case_id: str
+    doc_id: str
+    text: str        # the excerpt/snippet to store
+    source: str      # human-readable label (case name)
+    url: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -103,10 +138,41 @@ async def session_query(req: SessionQueryRequest):
     items.extend(rag_items)
 
     # ── 2. CourtListener case law ────────────────────────────────────────────
-    case_items = await _query_courtlistener(req.text, req.line_index)
+    case_items = await _query_courtlistener(req.text, req.context, req.line_index)
     items.extend(case_items)
 
     return SessionQueryResponse(items=items)
+
+
+# ---------------------------------------------------------------------------
+# POST /session/save-to-context
+# ---------------------------------------------------------------------------
+
+@router.post("/save-to-context")
+async def save_to_context(req: SaveToContextRequest):
+    """
+    Saves a surfaced case snippet into the RAG store so it becomes searchable
+    within the case's document context going forward.
+
+    Assumes RAG /store accepts: { case_id, doc_id, text, source, url }.
+    Adjust the payload keys to match your teammate's RAG schema if needed.
+    """
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            resp = await client.post(
+                f"{RAG_BASE}/store",
+                json={
+                    "case_id": req.case_id,
+                    "doc_id": req.doc_id,
+                    "text": req.text,
+                    "source": req.source,
+                    "url": req.url,
+                },
+            )
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"RAG store failed: {exc}")
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -135,15 +201,20 @@ async def _query_rag(case_id: str, text: str, line_index: int) -> list[SurfacedI
             type="document",
             status="hit",
             label=chunk.get("source", "document"),
-            excerpt=chunk["text"][:200],
+            excerpt=chunk["text"][:600],
             relevance=round(float(chunk.get("score", 0.8)), 2),
+            url=chunk.get("url") or None,
         ))
     return results
 
 
-async def _query_courtlistener(text: str, line_index: int) -> list[SurfacedItem]:
+async def _query_courtlistener(text: str, context: list[str], line_index: int) -> list[SurfacedItem]:
+    query = _build_search_query(text, context)
+    if not query:
+        return []
+
     try:
-        cases = await search_opinions(text, page_size=2)
+        cases = await search_opinions(query, page_size=2)
     except Exception:
         return []
 
@@ -159,7 +230,8 @@ async def _query_courtlistener(text: str, line_index: int) -> list[SurfacedItem]
             type="caselaw",
             status="hit",
             label=label,
-            excerpt=case.get("snippet", "")[:200] or None,
+            excerpt=case.get("snippet", "")[:600] or None,
             relevance=None,
+            url=case.get("url") or None,
         ))
     return results
