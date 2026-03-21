@@ -4,9 +4,9 @@ import { CircularProgressbarWithChildren, buildStyles } from 'react-circular-pro
 import 'react-circular-progressbar/dist/styles.css'
 import { VerticalTimeline, VerticalTimelineElement } from 'react-vertical-timeline-component'
 import 'react-vertical-timeline-component/style.min.css'
-import LiveSession from '../LiveSession/LiveSession.jsx'
 import './CasePage.css'
-import ContextUploadPage from '../ContextUpload/ContextUploadPage.jsx'
+import ContextUploadPage from '../ContextUploadPage/ContextUploadPage.jsx'
+import LiveSession from '../LiveSessionPage/LiveSession.jsx'
 
 const STATUS_ORDER = ['done', 'in_progress', 'upcoming']
 const STATUS_LABELS = { done: 'Done', in_progress: 'In Progress', upcoming: 'Upcoming' }

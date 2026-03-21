@@ -7,6 +7,11 @@ const http = require('http')
 const backendDir = path.join(__dirname, '..', 'backend')
 const devUiUrl = process.env.ELECTRON_DEV_URL || 'http://127.0.0.1:5173'
 
+// Avoid noisy GPU-decoder pixel-format errors for some uploaded sources in dev/Electron.
+// Software decode is more compatible (at the cost of higher CPU usage).
+app.commandLine.appendSwitch('disable-accelerated-video-decode')
+app.disableHardwareAcceleration()
+
 /** @type {import('child_process').ChildProcess | null} */
 let backendProc = null
 
