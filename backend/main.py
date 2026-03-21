@@ -10,6 +10,7 @@ from uuid import uuid4
 from fastapi import Body, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from routes_rag import router as rag_router
 
 app = FastAPI()
 SESSION_MEDIA_DIR = Path(tempfile.mkdtemp(prefix="paradocs-media-"))
@@ -25,6 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.mount("/media", StaticFiles(directory=SESSION_MEDIA_DIR), name="media")
+app.include_router(rag_router)
 
 
 def cleanup_session_media() -> None:
