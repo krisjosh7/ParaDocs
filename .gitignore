@@ -10,3 +10,7 @@ __pycache__/
 backend/venv/
 backend/cases/
 backend/chroma/
+backend/.coverage
+backend/.coverage.*
+backend/htmlcov/
+backend/.coveragerc

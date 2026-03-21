@@ -104,10 +104,30 @@ curl -X POST http://127.0.0.1:8000/query \
 
 `filters.type` can be `null`, or `"raw"`, `"summary"`, `"event"`, or `"claim"` to restrict vector hits.
 
+### Backend unit tests
+
+```bash
+cd backend
+pip install -r requirements.txt
+python -m pytest tests/ -v
+```
+
+Tests use a temporary **Chroma** directory and **cases** root (`CHROMA_PERSIST_DIR`, `CASES_ROOT`) and mock **`embed_texts`** so they run without downloading embedding models. `/store` is tested with **`parse_legal_structure` mocked** so Ollama is not required.
+
+Coverage (app modules under `backend/`, excludes `tests/`; config in `backend/pyproject.toml`):
+
+```bash
+cd backend
+python -m pytest tests/ -q --cov=. --cov-report=term-missing
+```
+
+Local coverage data files (`backend/.coverage`, etc.) are gitignored.
+
 ## Project layout
 
 ```
 electron/main.js   # Electron entry
 frontend/          # Vite + React
 backend/main.py    # FastAPI app
+backend/tests/     # pytest — conftest.py + rag/, upload/, parser/, …
 ```
