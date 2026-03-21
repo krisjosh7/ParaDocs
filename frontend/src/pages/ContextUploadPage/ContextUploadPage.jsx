@@ -2,190 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AudioUploadFlow, FileUploadFlow, TextUploadFlow } from './ContextUploadFlow'
 import DocxPreview from './DocxPreview'
+import {
+  createFileContext,
+  createTextContext,
+  fetchContextsForCase,
+} from './contextUploadHelpers'
 import './ContextUploadPage.css'
 import './ContextDownloadActions.css'
-
-/** Demo assets — public URLs so previews work in dev without uploads */
-/** Use an Electron/Chromium-friendly MP4 to avoid ffmpeg decode errors. */
-const DEMO_VIDEO_MP4 =
-  'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
-const DEMO_CONTEXTS = [
-  {
-    id: 'ctx-ui-scroll-demo',
-    type: 'image',
-    title: [
-      'Demo — stress title for modal header scroll.',
-      'Block A: Docket 24-CV-10842 · EXHIBIT 17-A (rev. 4) · Bates DEF_00018422–DEF_00018489 · Confidential – Attorneys’ Eyes Only · Production set 2026-03-14T09:22Z.',
-      'Block B: Alternate filename from custodian export plus email subject line concatenated per legacy loader: "RE: RE: FW: Photos from site walk — north elevation (final) (2) — please use v3 not v2".',
-      'Block C: Chain-of-custody note: sealed envelope received at reception 11:04; logged by J. Patel; transferred to evidence locker B-12; imaging workstation WS-forensics-07; hash SHA-256 verified against manifest row 118.',
-      'Block D: If you can read this line without scrolling the header area above the image, the heading cap is not working — scroll inside the kicker+title region (two-finger trackpad / wheel over the title).',
-    ].join(' '),
-    addedLabel: 'Demo',
-    imageSrc: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&q=80',
-    caption: [
-      'Long caption demo — scroll the modal BODY (below the image) for the rest.',
-      '',
-      'Section 1 — Summary: The heading above uses its own scroll when title text exceeds a fixed max height. The image and this caption live in a separate scrollable pane.',
-      '',
-      'Section 2 — Lorem block: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
-      '',
-      'Section 3 — Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
-      '',
-      'Section 4 — Repeat for length: Archival notes, privilege review status, redaction log IDs, production Bates ranges, and custodian affidavits often span many paragraphs. Scroll to confirm the body region keeps working with a long caption plus a tall preview.',
-      '',
-      'Section 5 — Numbers: ' +
-        Array.from({ length: 40 }, (_, i) => `Item ${i + 1}: exhibit cross-ref, hash, and reviewer initials.`).join(' '),
-    ].join('\n'),
-  },
-  {
-    id: 'ctx-1',
-    type: 'image',
-    title: 'Site photo — north elevation',
-    addedLabel: 'Today · 9:14',
-    imageSrc: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&q=80',
-    caption: 'Reference image for exterior lighting discussion.',
-  },
-  {
-    id: 'ctx-2',
-    type: 'video',
-    title: 'Witness clip (excerpt)',
-    addedLabel: 'Today · 8:02',
-    videoSrc: DEMO_VIDEO_MP4,
-    caption: 'Muted loop preview; open for full playback controls.',
-  },
-  {
-    id: 'ctx-3',
-    type: 'audio',
-    title: 'Voice memo — intake notes',
-    addedLabel: 'Yesterday',
-    audioSrc: 'https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3',
-    caption: 'Short sample audio; waveform is decorative in grid view.',
-  },
-  {
-    id: 'ctx-4',
-    type: 'pdf',
-    title: 'Exhibit A — table extract',
-    addedLabel: 'Yesterday',
-    pdfSrc: '/sample.pdf',
-    caption: 'First-page preview in grid; expand for readable PDF.',
-  },
-  {
-    id: 'ctx-5',
-    type: 'text',
-    title: 'Pasted discovery notes',
-    addedLabel: 'Mar 18',
-    textPreview:
-      'Key dates: filing Mar 12; response due Mar 26. Open questions on chain of custody for USB drive…',
-    textFull: `Key dates: filing Mar 12; response due Mar 26.
-
-Open questions:
-- Chain of custody for USB drive handed off at reception
-- Whether redacted appendix v2 supersedes v1 for expert review
-
-Next: schedule 30m with records team to confirm log timestamps.`,
-    caption: 'Plain text context; full note in expanded view.',
-  },
-  {
-    id: 'ctx-6',
-    type: 'image',
-    title: 'Diagram — workflow',
-    addedLabel: 'Mar 17',
-    imageSrc: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80',
-    caption: 'Whiteboard-style diagram for internal alignment.',
-  },
-  {
-    id: 'ctx-7',
-    type: 'video',
-    title: 'Deposition recording — session 2',
-    addedLabel: 'Mar 16',
-    videoSrc: DEMO_VIDEO_MP4,
-    caption: 'Full session recording; key testimony around 1:23:45.',
-  },
-  {
-    id: 'ctx-8',
-    type: 'pdf',
-    title: 'Contract — amendment v3',
-    addedLabel: 'Mar 15',
-    pdfSrc: '/sample.pdf',
-    caption: 'Redlined changes highlighted; signature page at end.',
-  },
-  {
-    id: 'ctx-9',
-    type: 'text',
-    title: 'Email thread — client correspondence',
-    addedLabel: 'Mar 14',
-    textPreview:
-      'Subject: Re: Timeline clarification. Following up on our call yesterday, I wanted to confirm the revised deadlines…',
-    textFull: `Subject: Re: Timeline clarification
-
-Following up on our call yesterday, I wanted to confirm the revised deadlines:
-- Draft review: Mar 20
-- Final submission: Mar 25
-
-Please let me know if this works for your team.`,
-    caption: 'Email chain with 4 replies; attachments referenced.',
-  },
-  {
-    id: 'ctx-10',
-    type: 'audio',
-    title: 'Phone call — expert consultation',
-    addedLabel: 'Mar 13',
-    audioSrc: 'https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3',
-    caption: '45-minute recording; technical discussion on methodology.',
-  },
-  {
-    id: 'ctx-11',
-    type: 'image',
-    title: 'Evidence photo — item #042',
-    addedLabel: 'Mar 12',
-    imageSrc: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&q=80',
-    caption: 'High-resolution detail shot; chain of custody tag visible.',
-  },
-  {
-    id: 'ctx-12',
-    type: 'pdf',
-    title: 'Research paper — cited source',
-    addedLabel: 'Mar 11',
-    pdfSrc: '/sample.pdf',
-    caption: 'Academic article; relevant sections bookmarked.',
-  },
-  {
-    id: 'ctx-13',
-    type: 'video',
-    title: 'Security footage — timestamp 14:32',
-    addedLabel: 'Mar 10',
-    videoSrc: DEMO_VIDEO_MP4,
-    caption: 'CCTV extract; multiple camera angles available.',
-  },
-  {
-    id: 'ctx-14',
-    type: 'text',
-    title: 'Meeting notes — strategy session',
-    addedLabel: 'Mar 9',
-    textPreview:
-      'Attendees: Sarah, Mike, David. Discussion points: budget allocation, timeline risks, resource needs…',
-    textFull: `Attendees: Sarah, Mike, David
-
-Discussion points:
-- Budget allocation for Q2
-- Timeline risks and mitigation
-- Resource needs for upcoming phase
-
-Action items:
-- Sarah: Draft proposal by Friday
-- Mike: Review technical specs
-- David: Schedule follow-up`,
-    caption: 'Bullet-point summary; full transcript available on request.',
-  },
-  {
-    id: 'ctx-15',
-    type: 'image',
-    title: 'Screenshot — dashboard state',
-    addedLabel: 'Mar 8',
-    imageSrc: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80',
-    caption: 'System state at time of incident; metadata preserved.',
-  },
-]
 
 const TYPE_LABELS = {
   image: 'Image',
@@ -483,8 +306,17 @@ function ContextPreview({ item, compact, inModal }) {
   )
 }
 
-export default function ContextUploadPage({ onBack }) {
-  const [contextItems, setContextItems] = useState(() => [...DEMO_CONTEXTS])
+function useDebouncedValue(value, ms) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return debounced
+}
+
+export default function ContextUploadPage({ onBack, caseId }) {
+  const [contextItems, setContextItems] = useState([])
   const [expandedId, setExpandedId] = useState(null)
   const [pageIndex, setPageIndex] = useState(0)
   const [fabOpen, setFabOpen] = useState(false)
@@ -493,6 +325,33 @@ export default function ContextUploadPage({ onBack }) {
   const [textUploadOpen, setTextUploadOpen] = useState(false)
   const [audioUploadOpen, setAudioUploadOpen] = useState(false)
   const [fileUploadOpen, setFileUploadOpen] = useState(false)
+
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput, 300)
+  const [listLoading, setListLoading] = useState(false)
+  const [listError, setListError] = useState('')
+
+  const refreshContexts = useCallback(async () => {
+    if (!caseId?.trim()) {
+      setContextItems([])
+      return
+    }
+    setListLoading(true)
+    setListError('')
+    try {
+      const items = await fetchContextsForCase(caseId.trim(), { q: debouncedSearch })
+      setContextItems(items)
+    } catch (e) {
+      setListError(e instanceof Error ? e.message : 'Failed to load contexts')
+      setContextItems([])
+    } finally {
+      setListLoading(false)
+    }
+  }, [caseId, debouncedSearch])
+
+  useEffect(() => {
+    refreshContexts()
+  }, [refreshContexts])
 
   const totalPages = Math.max(1, Math.ceil(contextItems.length / PAGE_SIZE))
   const boundedPage = Math.min(pageIndex, totalPages - 1)
@@ -528,20 +387,78 @@ export default function ContextUploadPage({ onBack }) {
     setAudioUploadOpen(false)
   }, [])
 
-  const handleTextAdd = useCallback((newItem) => {
-    setContextItems((prev) => [newItem, ...prev])
-    setPageIndex(0)
-  }, [])
+  const handleTextAdd = useCallback(
+    async (newItem) => {
+      if (!caseId?.trim()) return
+      setListError('')
+      try {
+        await createTextContext(caseId.trim(), {
+          title: newItem.title,
+          caption: newItem.caption,
+          textFull: newItem.textFull,
+        })
+        await refreshContexts()
+        setPageIndex(0)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Save failed'
+        setListError(msg)
+        throw e
+      }
+    },
+    [caseId, refreshContexts],
+  )
 
-  const handleAudioAdd = useCallback((newItem) => {
-    setContextItems((prev) => [newItem, ...prev])
-    setPageIndex(0)
-  }, [])
+  const handleAudioAdd = useCallback(
+    async (newItem) => {
+      if (!caseId?.trim()) return
+      if (!newItem._audioBlob) {
+        const msg = 'Could not read recording. Try again.'
+        setListError(msg)
+        throw new Error(msg)
+      }
+      setListError('')
+      try {
+        const blob = newItem._audioBlob
+        const ext = blob.type?.includes('webm') ? 'webm' : blob.type?.includes('mp4') ? 'm4a' : 'webm'
+        const file = new File([blob], `recording.${ext}`, { type: blob.type || 'audio/webm' })
+        await createFileContext(caseId.trim(), file, {
+          type: 'audio',
+          title: newItem.title,
+          caption: newItem.caption,
+          docSubtype: '',
+        })
+        await refreshContexts()
+        setPageIndex(0)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Save failed'
+        setListError(msg)
+        throw e
+      }
+    },
+    [caseId, refreshContexts],
+  )
 
-  const handleFileAdd = useCallback((newItem) => {
-    setContextItems((prev) => [newItem, ...prev])
-    setPageIndex(0)
-  }, [])
+  const handleFileAdd = useCallback(
+    async (newItem) => {
+      if (!caseId?.trim() || !newItem.sourceFile) return
+      setListError('')
+      try {
+        await createFileContext(caseId.trim(), newItem.sourceFile, {
+          type: newItem.type,
+          title: newItem.title,
+          caption: newItem.caption,
+          docSubtype: newItem.docSubtype || '',
+        })
+        await refreshContexts()
+        setPageIndex(0)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Upload failed'
+        setListError(msg)
+        throw e
+      }
+    },
+    [caseId, refreshContexts],
+  )
 
   const closeModal = useCallback(() => setExpandedId(null), [])
 
@@ -594,7 +511,29 @@ export default function ContextUploadPage({ onBack }) {
             ) : null}
             <header className="context-page-heading">
               <p className="header-context-kicker">CONTEXT LIBRARY</p>
+              {caseId ? (
+                <div className="context-page-search-row">
+                  <label className="context-page-search-label" htmlFor="context-search-q">
+                    Search contexts
+                  </label>
+                  <input
+                    id="context-search-q"
+                    type="search"
+                    className="context-page-search-input"
+                    placeholder="Filter by title, caption, or text…"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+              ) : null}
             </header>
+            {listError ? (
+              <p className="context-page-list-error" role="alert">
+                {listError}
+              </p>
+            ) : null}
+            {listLoading ? <p className="context-page-list-loading">Loading contexts…</p> : null}
           </div>
 
           <div
@@ -625,7 +564,7 @@ export default function ContextUploadPage({ onBack }) {
                         <ContextPreview item={item} compact />
                         <div className="context-card-footer">
                           <div className="context-card-meta-row">
-                            <span className="context-type-pill">{TYPE_LABELS[item.type]}</span>
+                            <span className="context-type-pill">{TYPE_LABELS[item.type] ?? item.type}</span>
                             <span className="context-added-label">{item.addedLabel}</span>
                           </div>
                           <h3 className="context-card-title" title={item.title}>
@@ -748,7 +687,7 @@ export default function ContextUploadPage({ onBack }) {
           >
             <header className="context-modal-header">
               <div className="context-modal-heading-block">
-                <p className="context-modal-kicker">{TYPE_LABELS[expanded.type]} · {expanded.addedLabel}</p>
+                <p className="context-modal-kicker">{TYPE_LABELS[expanded.type] ?? expanded.type} · {expanded.addedLabel}</p>
                 <h2 id="context-modal-title" className="context-modal-title">
                   {expanded.title}
                 </h2>
