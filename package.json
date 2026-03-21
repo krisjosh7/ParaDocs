@@ -1,0 +1,16 @@
+{
+  "name": "parasocial",
+  "version": "1.0.0",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:electron": "wait-on http://127.0.0.1:5173 && electron .",
+    "dev": "concurrently -k \"npm run dev:frontend\" \"npm run dev:electron\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.1",
+    "wait-on": "^8.0.1"
+  }
+}
