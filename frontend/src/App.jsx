@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Routes, Route, useNavigate } from 'react-router-dom'
 import FloatingActionButton from './components/FloatingActionButton.jsx'
 import MainContent from './components/MainContent.jsx'
+import CasePage from './pages/CasePage/CasePage.jsx'
 
 const INITIAL_CASES = [
   {
@@ -346,7 +347,7 @@ export default function App() {
     <div className="app-shell">
       <Routes>
         <Route path="/" element={<HomePage cases={cases} setCases={setCases} />} />
-        {/* endpoints to add: caseId, caseId/context-upload */}
+        <Route path="/case/:caseId/*" element={<CasePage cases={cases} />} />
       </Routes>
     </div>
   )
