@@ -51,34 +51,6 @@ def _normalize_search_result(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _normalize_opinion(raw: dict[str, Any], source_type: str) -> dict[str, Any]:
-    """
-    Normalize an opinion object returned by the database REST endpoint
-    (e.g. /api/rest/v4/opinions/ or /api/rest/v4/opinions/{id}/).
-
-    These use snake_case, unlike search results.
-    NOTE: the exact field names for the opinion detail endpoint have not been
-    verified against a live response — if fields are missing, check the
-    OPTIONS response: GET /api/rest/v4/opinions/ with -X OPTIONS
-    """
-    citation_list = raw.get("citations", [])
-    citation_str = citation_list[0] if citation_list else ""
-
-    return {
-        "id": str(raw.get("cluster_id") or raw.get("id", "")),
-        "opinion_id": str(raw.get("id", "")),
-        "case_name": raw.get("case_name", ""),
-        "citation": citation_str,
-        "all_citations": citation_list,
-        "court": raw.get("court", ""),
-        "court_id": raw.get("court_id", ""),
-        "date_filed": raw.get("date_filed", ""),
-        "snippet": raw.get("plain_text", "")[:500],
-        "url": BASE_URL + raw.get("absolute_url", ""),
-        "source_type": source_type,
-    }
-
-
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -119,48 +91,96 @@ async def search_opinions(
     return [_normalize_search_result(r) for r in data.get("results", [])]
 
 
+async def _resolve_opinion_with_cluster(
+    client: httpx.AsyncClient,
+    opinion_url: str,
+) -> dict[str, Any] | None:
+    """
+    Fetch an opinion object and its parent cluster in parallel, then merge
+    them into a single normalized result.
+
+    Opinion object provides: opinion_id, snippet (plain_text)
+    Cluster object provides: case_name, citations, court, date_filed, absolute_url
+
+    Returns None if either request fails, so the caller can skip it cleanly.
+    """
+    import asyncio
+
+    try:
+        opinion_resp, = await asyncio.gather(client.get(opinion_url))
+        opinion_resp.raise_for_status()
+        opinion = opinion_resp.json()
+
+        cluster_id = opinion.get("cluster_id")
+        if not cluster_id:
+            return None
+
+        cluster_resp = await client.get(f"{API_BASE}/clusters/{cluster_id}/")
+        cluster_resp.raise_for_status()
+        cluster = cluster_resp.json()
+    except httpx.HTTPError:
+        return None
+
+    # Citations on the cluster come back as nested objects:
+    # [{"volume": 410, "reporter": "U.S.", "page": "113", "type": 1}, ...]
+    # Flatten to strings matching the shape from search results.
+    raw_citations = cluster.get("citations", [])
+    citation_strs: list[str] = []
+    for c in raw_citations:
+        if isinstance(c, str):
+            citation_strs.append(c)
+        elif isinstance(c, dict):
+            vol = c.get("volume", "")
+            rep = c.get("reporter", "")
+            page = c.get("page", "")
+            if vol and rep and page:
+                citation_strs.append(f"{vol} {rep} {page}")
+
+    return {
+        "id": str(cluster_id),
+        "opinion_id": str(opinion.get("id", "")),
+        "case_name": cluster.get("case_name", ""),
+        "citation": citation_strs[0] if citation_strs else "",
+        "all_citations": citation_strs,
+        "court": cluster.get("court_id", ""),
+        "court_id": cluster.get("court_id", ""),
+        "date_filed": cluster.get("date_filed", ""),
+        "snippet": opinion.get("plain_text", "")[:500],
+        "url": BASE_URL + cluster.get("absolute_url", opinion.get("absolute_url", "")),
+        "source_type": "backward_citation",
+    }
+
+
 async def get_backward_citations(opinion_id: str) -> list[dict[str, Any]]:
     """
     Iteration 2+ — cases that a given opinion *cites* (what it relied on).
-    Fetches the opinion detail and resolves each entry in opinions_cited.
-
-    Useful for tracing foundational precedent: find a relevant case, then
-    walk back to the cases it was built on.
-
-    NOTE: The exact shape of `opinions_cited` in the opinion detail response
-    has not been verified. It may be a list of resource URIs, integer IDs,
-    or nested objects. The integration test in test_courtlistener.py will
-    catch any mismatch — run it with a live token before relying on this.
+    Fetches the opinion detail, resolves each cited opinion URL, and for each
+    also fetches the parent cluster to get full metadata (case_name, citations,
+    court, date_filed). Opinion + cluster are fetched in parallel per result.
 
     Args:
         opinion_id: CourtListener opinion ID (opinions[0].id from search result)
 
     Returns:
-        List of normalized result dicts with source_type="backward_citation"
+        List of fully normalized result dicts with source_type="backward_citation"
     """
+    import asyncio
+
     async with httpx.AsyncClient(headers=_headers(), timeout=15.0) as client:
         detail_resp = await client.get(f"{API_BASE}/opinions/{opinion_id}/")
         detail_resp.raise_for_status()
         detail = detail_resp.json()
 
-        # opinions_cited may be a list of resource URIs like
-        # ["/api/rest/v4/opinions/123/"] — resolve each one.
+        # opinions_cited is a list of full URL strings, confirmed by tests:
+        # ["https://www.courtlistener.com/api/rest/v4/opinions/672370/"]
         # Cap at 10 to avoid explosion on heavily-cited opinions.
-        cited: list[str] = detail.get("opinions_cited", [])[:10]
+        cited_urls: list[str] = detail.get("opinions_cited", [])[:10]
 
-        results = []
-        for entry in cited:
-            try:
-                # entry is expected to be a relative URI string
-                url = BASE_URL + entry if entry.startswith("/") else entry
-                r = await client.get(url)
-                r.raise_for_status()
-                results.append(_normalize_opinion(r.json(), "backward_citation"))
-            except httpx.HTTPError:
-                # a single failed resolution shouldn't abort the whole batch
-                continue
+        # Resolve all cited opinions in parallel
+        tasks = [_resolve_opinion_with_cluster(client, url) for url in cited_urls]
+        resolved = await asyncio.gather(*tasks)
 
-    return results
+    return [r for r in resolved if r is not None]
 
 
 async def get_forward_citations(
@@ -169,7 +189,8 @@ async def get_forward_citations(
 ) -> list[dict[str, Any]]:
     """
     Iteration 2+ — opinions that *cite* this case (what came after it).
-    Uses the confirmed `cited_opinion` filter on the opinions database endpoint.
+    Uses the search endpoint with `cites:(id)` syntax — same engine as
+    search_opinions, so the response shape is identical (cluster + nested opinions).
 
     Shows how this case has been applied, distinguished, or overruled —
     i.e., the current state of the law around this decision.
@@ -181,18 +202,25 @@ async def get_forward_citations(
     Returns:
         List of normalized result dicts with source_type="forward_citation"
     """
+    # `cites` is a documented search field: "All of the item IDs that cite an opinion."
+    # Use the search endpoint with `cites:ID` syntax (no parentheses — those are
+    # for multi-term grouping, not needed for a single numeric ID).
+    # The REST opinions endpoint does NOT support a cited_opinion filter.
     params = {
-        "cited_opinion": opinion_id,
-        "format": "json",
+        "q": f"cites:{opinion_id}",
+        "type": "o",
         "page_size": page_size,
     }
 
     async with httpx.AsyncClient(headers=_headers(), timeout=15.0) as client:
-        resp = await client.get(f"{API_BASE}/opinions/", params=params)
+        resp = await client.get(f"{API_BASE}/search/", params=params)
         resp.raise_for_status()
         data = resp.json()
 
-    return [_normalize_opinion(r, "forward_citation") for r in data.get("results", [])]
+    results = [_normalize_search_result(r) for r in data.get("results", [])[:page_size]]
+    for r in results:
+        r["source_type"] = "forward_citation"
+    return results
 
 
 async def verify_citations(text: str) -> list[dict[str, Any]]:
