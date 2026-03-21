@@ -3,6 +3,9 @@ from typing import Any, Union
 from fastapi import Body, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Routers — each subgraph registers its own router here
+# from research.router import router as research_router  # uncomment when ready
+
 app = FastAPI()
 
 app.add_middleware(
@@ -12,6 +15,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# app.include_router(research_router, prefix="/research")  # uncomment when ready
 
 
 @app.get("/health")
