@@ -1,4 +1,4 @@
-# parasocial — Electron + React (Vite) + FastAPI
+# ParaDocs — Electron + React (Vite) + FastAPI
 
 Minimal desktop demo: Electron wraps a Vite dev server UI and spawns a local FastAPI (uvicorn) process. The React UI talks to the backend over HTTP.
 
