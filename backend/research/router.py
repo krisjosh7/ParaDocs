@@ -192,7 +192,7 @@ async def search(req: SearchRequest):
     if req.iteration == 1 or req.queries_to_run:
         # Text search — one task per query
         for query in req.queries_to_run:
-            tasks.append(search_opinions(query))
+            tasks.append(search_opinions(query, page_size=5))
 
     if req.iteration >= 2 and req.top_result_ids:
         # Citation chasing — forward and backward on each top result

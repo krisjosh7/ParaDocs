@@ -2,7 +2,7 @@ from typing import TypedDict
 
 # Maximum number of research iterations before the graph force-stops.
 # Keeps API costs bounded and prevents runaway loops.
-MAX_ITERATIONS = 3
+MAX_ITERATIONS = 2
 
 # Minimum relevance score (0.0–1.0) for a result to be passed to store.
 # Set by the score node based on the LLM's rating.
