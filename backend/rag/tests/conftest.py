@@ -11,11 +11,11 @@ load_dotenv(_backend.parent / ".env")
 
 
 @pytest.fixture
-def require_gemini() -> None:
+def require_groq() -> None:
     import os
 
-    if not os.environ.get("GEMINI_API_KEY", "").strip():
-        pytest.skip("GEMINI_API_KEY not set — add to backend/.env")
+    if not os.environ.get("GROQ_API_KEY", "").strip():
+        pytest.skip("GROQ_API_KEY not set — add to backend/.env")
 
 
 @pytest.fixture

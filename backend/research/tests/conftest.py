@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
-# backend/ and repo root (prefer backend/.env for GEMINI_API_KEY, etc.)
+# backend/ and repo root (prefer backend/.env for GROQ_API_KEY, etc.)
 _backend = Path(__file__).resolve().parents[2]
 load_dotenv(_backend / ".env")
 load_dotenv(_backend.parent / ".env")

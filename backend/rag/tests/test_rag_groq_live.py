@@ -1,9 +1,9 @@
 """
-Optional end-to-end tests against the real Gemini API.
-Skipped when GEMINI_API_KEY is unset.
+Optional end-to-end tests against the real Groq API.
+Skipped when GROQ_API_KEY is unset.
 
 Run only these:
-  pytest rag/tests/test_rag_gemini_live.py -m gemini -v
+  pytest rag/tests/test_rag_groq_live.py -m groq -v
 """
 
 from __future__ import annotations
@@ -20,9 +20,9 @@ def client(rag_isolation):
     return TestClient(app)
 
 
-@pytest.mark.gemini
-def test_live_parse_returns_valid_structured_document(require_gemini, client, rag_isolation) -> None:
-    """Calls real Gemini via parse_legal_structure; model from GEMINI_MODEL env."""
+@pytest.mark.groq
+def test_live_parse_returns_valid_structured_document(require_groq, client, rag_isolation) -> None:
+    """Calls real Groq via parse_legal_structure; model from GROQ_MODEL env."""
     doc = Document(
         case_id="live-parse-case",
         doc_id="live-parse-doc",
@@ -39,7 +39,7 @@ def test_live_parse_returns_valid_structured_document(require_gemini, client, ra
             detail = r.json()
         except Exception:
             detail = r.text
-        pytest.skip(f"Gemini parse not available: {r.status_code} {detail}")
+        pytest.skip(f"Groq parse not available: {r.status_code} {detail}")
     data = r.json()
     assert data["case_id"] == "live-parse-case"
     assert data["doc_id"] == "live-parse-doc"
@@ -48,8 +48,8 @@ def test_live_parse_returns_valid_structured_document(require_gemini, client, ra
     assert isinstance(data.get("claims"), list)
 
 
-@pytest.mark.gemini
-def test_live_store_parses_and_query_returns_chunks(require_gemini, client, rag_isolation) -> None:
+@pytest.mark.groq
+def test_live_store_parses_and_query_returns_chunks(require_groq, client, rag_isolation) -> None:
     """Full /store (parse + ingest + disk) then /query; skips if API errors."""
     case_id = "live-store-case"
     r = client.post(
@@ -65,7 +65,7 @@ def test_live_store_parses_and_query_returns_chunks(require_gemini, client, rag_
         },
     )
     if r.status_code != 200:
-        pytest.skip(f"Gemini store pipeline failed: {r.status_code} {r.text}")
+        pytest.skip(f"Groq store pipeline failed: {r.status_code} {r.text}")
     doc_id = r.json()["doc_id"]
     qr = client.post(
         "/query",

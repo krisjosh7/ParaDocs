@@ -4,7 +4,7 @@ import json
 
 from fastapi import HTTPException
 
-from gemini_llm import generate_json
+from groq_llm import generate_json
 
 from schemas import Document, StructuredDocument
 
@@ -97,7 +97,7 @@ def parse_legal_structure(document: Document) -> StructuredDocument:
     try:
         content = generate_json(PARSER_SYSTEM_PROMPT, user_prompt)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Gemini parse failure: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"Groq parse failure: {exc}") from exc
     try:
         data = json.loads(content)
     except json.JSONDecodeError as exc:

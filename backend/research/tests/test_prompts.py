@@ -1,8 +1,8 @@
 """
 Tests for research/prompts.py
 
-Unit tests:        no Gemini needed — test prompt structure and output parsers
-Integration tests: real Gemini API — requires GEMINI_API_KEY in the environment
+Unit tests:        no Groq needed — test prompt structure and output parsers
+Integration tests: real Groq API — requires GROQ_API_KEY in the environment
 """
 
 import os
@@ -209,49 +209,49 @@ def test_parse_score_no_reason_line():
 
 
 # ---------------------------------------------------------------------------
-# Integration: Gemini API (requires GEMINI_API_KEY)
+# Integration: Groq API (requires GROQ_API_KEY)
 # ---------------------------------------------------------------------------
 
-def _gemini_configured() -> bool:
-    return bool(os.environ.get("GEMINI_API_KEY", "").strip())
+def _groq_configured() -> bool:
+    return bool(os.environ.get("GROQ_API_KEY", "").strip())
 
 
-gemini_required = pytest.mark.skipif(
-    not _gemini_configured(),
-    reason="GEMINI_API_KEY not set — add to backend/.env",
+groq_required = pytest.mark.skipif(
+    not _groq_configured(),
+    reason="GROQ_API_KEY not set — add to backend/.env",
 )
 
 
-@gemini_required
-def test_gemini_api_key_is_configured_for_integration_tests():
-    assert _gemini_configured()
+@groq_required
+def test_groq_api_key_is_configured_for_integration_tests():
+    assert _groq_configured()
 
 
 # ---------------------------------------------------------------------------
 # Integration: run_generate_queries quality
 # ---------------------------------------------------------------------------
 
-@gemini_required
+@groq_required
 def test_run_generate_queries_returns_list():
     result = run_generate_queries(SAMPLE_CASE_FACTS, [], n=3)
     assert isinstance(result, list)
     assert len(result) > 0
 
 
-@gemini_required
+@groq_required
 def test_run_generate_queries_returns_correct_count():
     result = run_generate_queries(SAMPLE_CASE_FACTS, [], n=3)
     # Allow ±1 — models sometimes produce 2 or 4 despite being asked for 3
     assert 2 <= len(result) <= 4
 
 
-@gemini_required
+@groq_required
 def test_run_generate_queries_no_empty_strings():
     result = run_generate_queries(SAMPLE_CASE_FACTS, [], n=3)
     assert all(q.strip() != "" for q in result)
 
 
-@gemini_required
+@groq_required
 def test_run_generate_queries_look_like_search_terms():
     """Queries should be concise phrases, not full sentences or paragraphs."""
     result = run_generate_queries(SAMPLE_CASE_FACTS, [], n=3)
@@ -260,7 +260,7 @@ def test_run_generate_queries_look_like_search_terms():
         assert word_count <= 15, f"Query too long to be a search term: {q!r}"
 
 
-@gemini_required
+@groq_required
 def test_run_generate_queries_avoids_prior_queries():
     """Queries should not repeat what's already been run."""
     result = run_generate_queries(SAMPLE_CASE_FACTS, PRIOR_QUERIES, n=3)
@@ -274,27 +274,27 @@ def test_run_generate_queries_avoids_prior_queries():
 # Integration: run_score_result quality
 # ---------------------------------------------------------------------------
 
-@gemini_required
+@groq_required
 def test_run_score_result_returns_float_and_string():
     score, reason = run_score_result(SAMPLE_CASE_FACTS, SAMPLE_RESULT_RELEVANT)
     assert isinstance(score, float)
     assert isinstance(reason, str)
 
 
-@gemini_required
+@groq_required
 def test_run_score_result_score_in_valid_range():
     score, _ = run_score_result(SAMPLE_CASE_FACTS, SAMPLE_RESULT_RELEVANT)
     assert 0.0 <= score <= 1.0
 
 
-@gemini_required
+@groq_required
 def test_run_score_result_reason_nonempty():
     _, reason = run_score_result(SAMPLE_CASE_FACTS, SAMPLE_RESULT_RELEVANT)
     assert len(reason.strip()) > 0
 
 
 @pytest.mark.integration
-@gemini_required
+@groq_required
 def test_run_score_result_relevant_scores_higher_than_irrelevant():
     """
     The core competence test. A result directly about traffic negligence

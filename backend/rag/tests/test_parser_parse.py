@@ -57,7 +57,7 @@ def test_parse_legal_structure_invalid_json(mock_gen) -> None:
 
 
 @patch("rag.parser.generate_json")
-def test_parse_legal_structure_gemini_failure(mock_gen) -> None:
+def test_parse_legal_structure_groq_failure(mock_gen) -> None:
     mock_gen.side_effect = RuntimeError("connection refused")
     doc = Document(
         case_id="c",
@@ -69,7 +69,7 @@ def test_parse_legal_structure_gemini_failure(mock_gen) -> None:
     with pytest.raises(HTTPException) as ei:
         parse_legal_structure(doc)
     assert ei.value.status_code == 500
-    assert "Gemini" in str(ei.value.detail)
+    assert "Groq" in str(ei.value.detail)
 
 
 @patch("rag.parser.generate_json")

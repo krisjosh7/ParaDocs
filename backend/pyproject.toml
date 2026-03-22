@@ -2,7 +2,7 @@
 testpaths = ["tests", "rag/tests"]
 markers = [
     "integration: full RAG path (HTTP + Chroma + disk); no Ollama",
-    "gemini: requires GEMINI_API_KEY; skipped if unset",
+    "groq: requires GROQ_API_KEY; skipped if unset",
 ]
 
 [tool.coverage.run]
