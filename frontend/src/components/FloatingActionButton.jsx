@@ -1,24 +1,17 @@
 export default function FloatingActionButton({ onNewCase }) {
   return (
-    <div className="floating-actions" aria-label="Actions">
-      <div className="floating-menu" role="menu" aria-label="Create">
-        <button
-          type="button"
-          className="floating-menu-item"
-          role="menuitem"
-          onClick={() => onNewCase?.()}
-        >
-          New Case
-        </button>
-      </div>
-      <button
-        type="button"
-        className="floating-action-button"
-        aria-haspopup="menu"
-        aria-label="Show new case option (hover or focus)"
-      >
+    <button
+      type="button"
+      className="floating-new-case-fab"
+      aria-label="New case"
+      onClick={() => onNewCase?.()}
+    >
+      <span className="floating-new-case-fab__grow">
+        <span className="floating-new-case-fab__label">New Case</span>
+      </span>
+      <span className="floating-new-case-fab__icon" aria-hidden>
         +
-      </button>
-    </div>
+      </span>
+    </button>
   )
 }
