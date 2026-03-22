@@ -63,12 +63,12 @@
 
 /* Visible spine + elements (library defaults can wash out on dark UI) */
 .pd-vtl-wrap .vertical-timeline::before {
-  background: rgba(232, 238, 252, 0.22) !important;
+  background: rgba(184, 148, 62, 0.45) !important;
   width: 3px !important;
 }
 
 .pd-vtl-wrap .vertical-timeline-element-content {
-  box-shadow: 0 4px 20px rgba(5, 10, 24, 0.28) !important;
+  box-shadow: 0 8px 20px rgba(5, 10, 24, 0.24) !important;
 }
 
 /* Expanded fork cards: grow with content (library / floats must not clip tall panels) */
@@ -84,46 +84,46 @@
 
 /* Rows whose primary / collapsed preview is low-confidence or low support vs peers */
 .pd-vtl-wrap .pd-vtl-element--weak .vertical-timeline-element-content {
-  border-color: rgba(232, 238, 252, 0.09) !important;
-  background: rgba(232, 238, 252, 0.04) !important;
+  border-color: rgba(212, 192, 154, 0.55) !important;
+  background: rgba(250, 248, 244, 0.98) !important;
 }
 
 .pd-vtl-wrap .pd-vtl-element--weak .pd-timeline-date-near-node {
-  color: rgba(232, 238, 252, 0.52);
+  color: rgba(90, 95, 82, 0.75);
 }
 
 .pd-timeline-node-bubble--weak.pd-timeline-node-bubble--branch {
-  background: #3a3548;
-  border-color: rgba(200, 180, 255, 0.22);
+  background: #4a4538;
+  border-color: rgba(184, 148, 62, 0.4);
 }
 
 .pd-timeline-node-bubble--weak .pd-timeline-fork-svg {
-  color: rgba(232, 238, 252, 0.55);
+  color: rgba(246, 243, 234, 0.75);
 }
 
 .pd-fork-collapsed--weak .timeline-event-title {
-  color: rgba(245, 240, 232, 0.65);
+  color: rgba(28, 39, 68, 0.55);
 }
 
 .pd-fork-collapsed--weak .timeline-event-desc {
-  color: rgba(232, 238, 252, 0.48);
+  color: rgba(90, 95, 82, 0.72);
 }
 
 .timeline-fork-card--weak .timeline-event-title {
-  color: rgba(245, 240, 232, 0.68);
+  color: rgba(28, 39, 68, 0.62);
 }
 
 .timeline-fork-card--weak .timeline-event-desc {
-  color: rgba(232, 238, 252, 0.52);
+  color: rgba(90, 95, 82, 0.75);
 }
 
 .timeline-fork-card--weak.timeline-fork-card--selected {
-  border-color: rgba(158, 197, 255, 0.22);
+  border-color: rgba(184, 148, 62, 0.45);
   box-shadow: none;
 }
 
 .timeline-fork-card--weak.timeline-fork-card--muted {
-  border-color: rgba(232, 238, 252, 0.06);
+  border-color: rgba(201, 188, 158, 0.55);
 }
 
 .pd-fork-expanded-root {
@@ -144,16 +144,16 @@
   gap: 10px;
   margin: 0 0 16px;
   padding-bottom: 14px;
-  border-bottom: 1px solid rgba(232, 238, 252, 0.12);
+  border-bottom: 1px dashed rgba(184, 148, 62, 0.35);
   font-size: 0.82rem;
   line-height: 1.45;
-  color: rgba(232, 238, 252, 0.78);
+  color: #5a5f52;
 }
 
 .timeline-fork-header svg {
   flex-shrink: 0;
   margin-top: 2px;
-  color: rgba(200, 190, 255, 0.9);
+  color: #8a7530;
 }
 
 .timeline-fork-cards {
@@ -166,8 +166,8 @@
 .timeline-fork-card {
   min-width: 0;
   border-radius: 12px;
-  border: 1px solid rgba(232, 238, 252, 0.12);
-  background: rgba(12, 18, 36, 0.35);
+  border: 1px solid rgba(212, 192, 154, 0.75);
+  background: rgba(255, 255, 255, 0.45);
   overflow: visible;
 }
 
@@ -204,9 +204,9 @@
   align-self: center;
   padding: 8px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(200, 180, 255, 0.35);
-  background: rgba(120, 90, 200, 0.18);
-  color: #ede9ff;
+  border: 1px solid rgba(184, 148, 62, 0.5);
+  background: rgba(184, 148, 62, 0.12);
+  color: #1c2744;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
@@ -214,8 +214,8 @@
 }
 
 .timeline-branch-swap:hover {
-  background: rgba(120, 90, 200, 0.3);
-  border-color: rgba(200, 180, 255, 0.5);
+  background: rgba(184, 148, 62, 0.2);
+  border-color: rgba(184, 148, 62, 0.65);
 }
 
 .timeline-branch-swap-label {
@@ -223,11 +223,11 @@
 }
 
 .timeline-fork-card--muted .timeline-fork-card-source-link {
-  color: #b8d8ff;
+  color: #8a7530;
 }
 
 .timeline-fork-card--muted .timeline-fork-card-source-fallback {
-  color: rgba(232, 238, 252, 0.62);
+  color: #6b6350;
 }
 
 /* Date is our .pd-timeline-date-near-node; hide empty library slot */
@@ -272,7 +272,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.35;
-  color: rgba(232, 238, 252, 0.78);
+  color: #8a7530;
   letter-spacing: 0.02em;
 }
 
@@ -300,14 +300,14 @@
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: #37456d;
-  border: 2px solid rgba(232, 238, 252, 0.3);
-  box-shadow: 0 2px 8px rgba(5, 10, 24, 0.25);
+  background: #1c2744;
+  border: 2px solid rgba(184, 148, 62, 0.55);
+  box-shadow: 0 2px 8px rgba(5, 10, 24, 0.22);
 }
 
 .pd-timeline-node-bubble--branch {
-  background: #4a3d6b;
-  border-color: rgba(200, 180, 255, 0.35);
+  background: #2a3350;
+  border-color: rgba(184, 148, 62, 0.65);
 }
 
 @media only screen and (min-width: 1170px) {
@@ -318,7 +318,7 @@
 }
 
 .pd-vtl-wrap .vertical-timeline-element-content-arrow {
-  border-right-color: rgba(232, 238, 252, 0.07) !important;
+  border-right-color: #f6f3ea !important;
 }
 
 .pd-timeline-dot-svg,
@@ -329,7 +329,7 @@
 }
 
 .pd-timeline-fork-svg {
-  color: rgba(232, 238, 252, 0.9);
+  color: rgba(246, 243, 234, 0.92);
 }
 
 /* ── Collapsed fork / conflict row ── */
@@ -361,9 +361,9 @@
   gap: 8px;
   padding: 10px 16px;
   border-radius: 10px;
-  border: 1px solid rgba(200, 180, 255, 0.35);
-  background: rgba(120, 90, 200, 0.2);
-  color: #ede9ff;
+  border: 1px solid rgba(184, 148, 62, 0.5);
+  background: rgba(184, 148, 62, 0.14);
+  color: #1c2744;
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
@@ -371,8 +371,8 @@
 }
 
 .pd-fork-expand-btn:hover {
-  background: rgba(120, 90, 200, 0.32);
-  border-color: rgba(200, 180, 255, 0.5);
+  background: rgba(184, 148, 62, 0.24);
+  border-color: rgba(184, 148, 62, 0.65);
 }
 
 .pd-fork-source-link {
@@ -380,7 +380,7 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: rgba(158, 197, 255, 0.95);
+  color: #6b5a30;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -389,7 +389,7 @@
 }
 
 .pd-fork-source-link:hover {
-  color: #cfe0ff;
+  color: #4a3f22;
 }
 
 /* Inline source link next to “Compare accounts” (same styles as expanded fork link) */
@@ -422,25 +422,26 @@
   gap: 6px;
   padding: 6px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(232, 238, 252, 0.15);
-  background: rgba(232, 238, 252, 0.06);
-  color: rgba(232, 238, 252, 0.75);
+  border: 1px solid rgba(212, 192, 154, 0.75);
+  background: rgba(255, 255, 255, 0.5);
+  color: #5a5f52;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .pd-fork-collapse-btn:hover {
-  background: rgba(232, 238, 252, 0.1);
-  color: #e8eefc;
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(184, 148, 62, 0.45);
+  color: #1c2744;
 }
 
 /* Per-card exact source (expanded fork) */
 .timeline-fork-card-source {
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid rgba(232, 238, 252, 0.1);
+  border-top: 1px solid rgba(212, 192, 154, 0.65);
 }
 
 .timeline-fork-card-source-heading {
@@ -448,7 +449,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(158, 197, 255, 0.75);
+  color: #8a7530;
   margin-bottom: 8px;
 }
 
@@ -458,17 +459,26 @@
   font-size: 0.88rem;
   font-weight: 600;
   line-height: 1.45;
-  color: #9ec5ff;
+  color: #6b5a30;
   text-decoration: underline;
   text-underline-offset: 3px;
-  text-decoration-color: rgba(158, 197, 255, 0.45);
+  text-decoration-color: rgba(107, 90, 48, 0.4);
   max-width: 100%;
   word-break: break-word;
 }
 
 .timeline-fork-card-source-link:hover {
-  color: #cfe0ff;
-  text-decoration-color: rgba(207, 224, 255, 0.65);
+  color: #4a3f22;
+  text-decoration-color: rgba(74, 63, 34, 0.55);
+}
+
+button.timeline-fork-card-source-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
 }
 
 .timeline-fork-card-source-dl {
@@ -482,25 +492,25 @@
 
 .timeline-fork-card-source-dl dt {
   margin: 0;
-  color: rgba(232, 238, 252, 0.38);
+  color: #8a8270;
   font-weight: 500;
 }
 
 .timeline-fork-card-source-dl dd {
   margin: 0;
-  color: rgba(232, 238, 252, 0.88);
+  color: #374669;
   word-break: break-word;
 }
 
 .timeline-fork-card-source-dl a {
-  color: #9ec5ff;
+  color: #6b5a30;
 }
 
 .timeline-fork-card-source-dl code {
   font-size: 0.76rem;
   padding: 2px 6px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.28);
+  background: rgba(28, 39, 68, 0.06);
   word-break: break-all;
 }
 
@@ -513,7 +523,7 @@
 
 .timeline-fork-card-source-key {
   font-size: 0.72rem;
-  color: rgba(232, 238, 252, 0.4);
+  color: #8a7530;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -523,12 +533,12 @@
   font-size: 0.76rem;
   padding: 6px 8px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.28);
+  background: rgba(28, 39, 68, 0.06);
   word-break: break-all;
 }
 
 .timeline-fork-card-source-fallback {
   margin: 0;
   font-size: 0.8rem;
-  color: rgba(232, 238, 252, 0.45);
+  color: #8a8270;
 }

@@ -111,7 +111,7 @@
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
   margin-bottom: 32px;
 }
 
@@ -126,15 +126,11 @@
   box-shadow: 0 8px 20px rgba(5, 10, 24, 0.24);
   display: flex;
   flex-direction: column;
-  max-height: 520px;
+  min-height: 0;
+  height: 100%;
 }
 
-.checklist-heading {
-  margin: 0 0 14px;
-  font-size: 1.15rem;
-  font-weight: 700;
-  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
-  color: #1c2744;
+.task-checklist-heading {
   flex-shrink: 0;
 }
 
@@ -267,21 +263,12 @@
 }
 
 .stat-card--research {
-  border-top-color: #3d5a8a;
-  background: linear-gradient(165deg, #faf7ef 0%, #eef2f8 55%, #e8ecf4 100%);
-  border-color: rgba(61, 90, 138, 0.22);
+  /* Match Progress / Tasks card shell (cream + gold accent) */
+  background: #f6f3ea;
+  border: 1px solid #d4c09a;
+  border-top: 3px solid #b8943e;
   position: relative;
   overflow: hidden;
-}
-
-.stat-card--research::before {
-  content: '';
-  position: absolute;
-  inset: -40% -20% auto auto;
-  width: 140px;
-  height: 140px;
-  background: radial-gradient(circle, rgba(90, 120, 200, 0.14) 0%, transparent 70%);
-  pointer-events: none;
 }
 
 .stat-card-research-top {
@@ -289,14 +276,13 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   position: relative;
   z-index: 1;
 }
 
-.stat-card-heading--research {
+.stat-card-research-top .stat-card-heading {
   margin: 0;
-  color: #2c4a7a;
 }
 
 .research-live-badge {
@@ -348,19 +334,23 @@
   flex-direction: column;
   gap: 4px;
   padding-bottom: 4px;
-  border-bottom: 1px dashed rgba(61, 90, 138, 0.18);
+  border-bottom: 1px dashed rgba(184, 148, 62, 0.35);
 }
 
 .stat-big-number--research {
   font-size: 3rem;
+  font-weight: 800;
+  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
   color: #1c2744;
   align-self: flex-start;
+  line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 .research-hero-caption {
   font-size: 0.82rem;
   font-weight: 600;
-  color: #4a5f8a;
+  color: #374669;
   letter-spacing: 0.02em;
 }
 
@@ -374,8 +364,8 @@
   flex: 1 1 120px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.65);
-  border: 1px solid rgba(61, 90, 138, 0.12);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(212, 192, 154, 0.65);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -386,7 +376,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #697599;
+  color: #8a7530;
 }
 
 .research-meta-chip-value {
@@ -400,12 +390,12 @@
   margin: 0;
   font-size: 0.78rem;
   line-height: 1.45;
-  color: #5a6578;
+  color: #5a5f52;
 }
 
 .research-last-run-label {
   font-weight: 700;
-  color: #4a5568;
+  color: #6b5f3a;
   margin-right: 6px;
 }
 
@@ -425,14 +415,14 @@
 }
 
 .research-last-run-stop {
-  color: #697599;
+  color: #6b6350;
 }
 
 .research-empty-hint {
   margin: 0;
   font-size: 0.78rem;
   line-height: 1.5;
-  color: #697599;
+  color: #5a5f52;
 }
 
 .research-summary-error {
@@ -444,7 +434,7 @@
 .research-poll-hint {
   margin: 4px 0 0;
   font-size: 0.68rem;
-  color: #8a92a8;
+  color: #8a8270;
   font-style: italic;
 }
 
@@ -526,6 +516,7 @@
 .case-timeline-section > .timeline-event-desc {
   text-align: center;
   max-width: 1100px;
+  color: rgba(245, 240, 232, 0.72);
 }
 
 .case-timeline-center-wrap {
@@ -536,16 +527,17 @@
 
 .timeline-heading {
   margin: 0 0 12px;
-  font-size: 1.15rem;
-  font-weight: 700;
-  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
-  color: #f5f0e8;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #c9a85a;
 }
 
 .timeline-subhint {
   margin: -6px 0 16px;
   font-size: 0.82rem;
-  color: rgba(232, 238, 252, 0.45);
+  color: rgba(245, 240, 232, 0.5);
   width: 100%;
   max-width: 1100px;
   text-align: center;
@@ -565,7 +557,7 @@
 .timeline-simple-card-source {
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid rgba(232, 238, 252, 0.1);
+  border-top: 1px solid rgba(212, 192, 154, 0.65);
 }
 
 .timeline-simple-card-source-link {
@@ -573,35 +565,44 @@
   font-size: 0.88rem;
   font-weight: 600;
   line-height: 1.45;
-  color: #9ec5ff;
+  color: #6b5a30;
   text-decoration: underline;
   text-underline-offset: 3px;
-  text-decoration-color: rgba(158, 197, 255, 0.45);
+  text-decoration-color: rgba(107, 90, 48, 0.4);
   max-width: 100%;
   word-break: break-word;
 }
 
 .timeline-simple-card-source-link:hover {
-  color: #cfe0ff;
-  text-decoration-color: rgba(207, 224, 255, 0.65);
+  color: #4a3f22;
+  text-decoration-color: rgba(74, 63, 34, 0.55);
+}
+
+button.timeline-simple-card-source-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
 }
 
 .timeline-simple-card-source-fallback {
   margin: 0;
   font-size: 0.8rem;
-  color: rgba(232, 238, 252, 0.45);
+  color: #8a8270;
 }
 
 .timeline-simple-card--weak .timeline-event-title {
-  color: rgba(245, 240, 232, 0.62);
+  color: rgba(28, 39, 68, 0.55);
 }
 
 .timeline-simple-card--weak .timeline-event-desc {
-  color: rgba(232, 238, 252, 0.46);
+  color: rgba(90, 95, 82, 0.72);
 }
 
 .timeline-simple-card--weak .timeline-simple-card-source-link {
-  color: #b8d8ff;
+  color: #8a7530;
 }
 
 .timeline-source-discovery-btn {
@@ -610,15 +611,20 @@
   justify-content: center;
   padding: 10px 16px;
   border-radius: 10px;
-  border: 1px solid rgba(232, 238, 252, 0.2);
-  background: rgba(232, 238, 252, 0.1);
-  color: #e8eefc;
+  border: 1px solid rgba(184, 148, 62, 0.45);
+  background: rgba(246, 243, 234, 0.95);
+  color: #1c2744;
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
   box-sizing: border-box;
-  transition: background-color 140ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.timeline-source-discovery-btn:hover {
+  background: #faf8f4;
+  border-color: rgba(184, 148, 62, 0.65);
 }
 
 .timeline-fork-card-body {
@@ -635,8 +641,8 @@
   margin-bottom: 16px;
   padding: 14px 16px;
   border-radius: 12px;
-  background: rgba(120, 90, 200, 0.12);
-  border: 1px solid rgba(180, 160, 255, 0.22);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(212, 192, 154, 0.85);
 }
 
 .timeline-branch-llm-label {
@@ -644,7 +650,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(200, 190, 255, 0.75);
+  color: #8a7530;
   margin-bottom: 8px;
 }
 
@@ -652,42 +658,43 @@
   margin: 0 0 8px;
   font-size: 0.88rem;
   line-height: 1.5;
-  color: rgba(232, 238, 252, 0.88);
+  color: #374669;
 }
 
 .timeline-branch-llm-notes {
   margin: 0;
   font-size: 0.82rem;
-  color: rgba(232, 238, 252, 0.55);
+  color: #5a5f52;
 }
 
 .timeline-branch-llm-err {
   margin: 0;
   font-size: 0.82rem;
-  color: #f0a8a8;
+  color: #a04444;
 }
 
 .timeline-branch-llm-apply {
   margin-top: 12px;
   padding: 8px 14px;
   border-radius: 10px;
-  border: 1px solid rgba(180, 160, 255, 0.35);
-  background: rgba(140, 110, 220, 0.25);
-  color: #ede9ff;
+  border: 1px solid rgba(184, 148, 62, 0.5);
+  background: rgba(184, 148, 62, 0.14);
+  color: #1c2744;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 140ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease;
 }
 
 .timeline-branch-llm-apply:hover {
-  background: rgba(140, 110, 220, 0.38);
+  background: rgba(184, 148, 62, 0.22);
+  border-color: rgba(184, 148, 62, 0.65);
 }
 
 .timeline-branch-llm-hint {
   margin: 10px 0 0;
   font-size: 0.78rem;
-  color: rgba(232, 238, 252, 0.45);
+  color: #8a8270;
 }
 
 .timeline-event-title {
@@ -695,19 +702,19 @@
   font-size: 1.05rem;
   font-weight: 600;
   font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
-  color: #f5f0e8;
+  color: #1c2744;
 }
 
 .timeline-event-desc {
   margin: 0;
   font-size: 0.9rem;
-  color: rgba(245, 240, 232, 0.7);
+  color: #5a5f52;
   line-height: 1.5;
 }
 
 /* Override timeline library defaults */
 .vertical-timeline::before {
-  background: rgba(184, 148, 62, 0.25) !important;
+  background: rgba(184, 148, 62, 0.4) !important;
 }
 
 .vertical-timeline-element-date {
@@ -716,27 +723,27 @@
 }
 
 .timeline-fork-card--muted .timeline-fork-card-inner {
-  background: rgba(18, 24, 42, 0.65);
+  background: transparent;
 }
 
 .timeline-fork-card--muted {
   /* Avoid whole-card opacity (it crushes contrast on links + body text). */
-  border-color: rgba(232, 238, 252, 0.08);
-  background: rgba(8, 12, 24, 0.45);
+  border-color: rgba(201, 188, 158, 0.85);
+  background: rgba(235, 232, 224, 0.95);
 }
 
 .timeline-fork-card--muted .timeline-event-title {
-  color: rgba(245, 240, 232, 0.82);
+  color: rgba(28, 39, 68, 0.78);
 }
 
 .timeline-fork-card--muted .timeline-event-desc {
-  color: rgba(232, 238, 252, 0.7);
+  color: #5a5f52;
 }
 
 .timeline-fork-card--selected {
-  border-color: rgba(158, 197, 255, 0.35);
-  background: rgba(30, 42, 72, 0.45);
-  box-shadow: 0 0 0 1px rgba(120, 160, 255, 0.12);
+  border-color: rgba(184, 148, 62, 0.75);
+  background: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 0 0 1px rgba(184, 148, 62, 0.2);
 }
 
 .timeline-fork-card--selected .timeline-fork-card-inner {
@@ -744,7 +751,7 @@
 }
 
 .vertical-timeline-element-content-arrow {
-  border-right-color: rgba(245, 240, 232, 0.07) !important;
+  border-right-color: #f6f3ea !important;
 }
 
 /* ── Responsive ────────────────────────────── */
@@ -755,6 +762,7 @@
   }
 
   .task-checklist {
-    max-height: 400px;
+    height: auto;
+    max-height: min(420px, 55vh);
   }
 }

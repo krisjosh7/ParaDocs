@@ -166,6 +166,71 @@ export async function fetchDiscoveredDocumentsForCase(caseId) {
   }))
 }
 
+/** Map a discovered RAG row to a shape the Context Library modal can render. */
+export function discoveredRowToLibraryItem(row) {
+  if (!row || typeof row !== 'object') return null
+  const meta = row.metadata || {}
+  const url = (row.sourceUrl || row.source_url || '').trim()
+  const title = discoveredDocDisplayTitle(row)
+  const when = formatDiscoveredTimestamp(meta.timestamp)
+  if (url) {
+    return {
+      id: `discovered:${row.doc_id}`,
+      type: 'research',
+      title,
+      caption: '',
+      addedLabel: when || 'Ingested',
+      sourceUrl: url,
+    }
+  }
+  const summary = row.structured?.summary?.text?.trim()
+  const body =
+    summary ||
+    'No text preview is available for this document. Open Discovery to inspect the library or raw files.'
+  return {
+    id: `discovered:${row.doc_id}`,
+    type: 'text',
+    title,
+    caption: '',
+    addedLabel: when || 'Ingested',
+    textFull: body,
+    textPreview: body.length > 200 ? `${body.slice(0, 199)}…` : body,
+  }
+}
+
+/**
+ * Resolve a timeline event’s catalog context id and/or RAG doc id to a normalized library item
+ * (same payloads as the Discovery grid modal).
+ */
+export async function resolveLibraryItemForTimeline(caseId, { contextId, docId } = {}) {
+  const cid = (caseId || '').trim()
+  const ctx = (contextId || '').trim()
+  const did = (docId || '').trim()
+  if (!cid) return null
+  if (!ctx && !did) return null
+
+  if (ctx) {
+    const items = await fetchContextsForCase(cid)
+    const found = items.find((it) => String(it.id) === ctx)
+    if (found) return found
+  }
+
+  if (did) {
+    const items = await fetchContextsForCase(cid)
+    const linked = items.find((it) => {
+      const rid = it.ragDocId || it.rag_doc_id
+      return rid && String(rid) === did
+    })
+    if (linked) return linked
+
+    const discovered = await fetchDiscoveredDocumentsForCase(cid)
+    const row = discovered.find((r) => String(r.doc_id) === did)
+    if (row) return discoveredRowToLibraryItem(row)
+  }
+
+  return null
+}
+
 export async function fetchContextsForCase(caseId, { q } = {}) {
   const params = new URLSearchParams()
   if (q && q.trim()) params.set('q', q.trim())

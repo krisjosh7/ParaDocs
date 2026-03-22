@@ -952,6 +952,33 @@
   background: rgba(28, 39, 68, 0.14);
 }
 
+.context-modal-event-strip {
+  padding: 0 22px 14px;
+  border-bottom: 1px solid #e6dcc4;
+}
+
+.context-modal-event-date {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5a678a;
+}
+
+.context-modal-event-quote {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #3d4a66;
+  border-left: 3px solid rgba(90, 103, 138, 0.35);
+  padding-left: 12px;
+}
+
+.context-modal-footer-discovery {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e6dcc4;
+}
+
 .context-modal-body {
   flex: 1;
   min-height: 0;

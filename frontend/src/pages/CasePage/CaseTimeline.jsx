@@ -1,9 +1,22 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { VerticalTimeline, VerticalTimelineElement } from 'react-vertical-timeline-component'
-import { discoveryContextUploadHref, exactSourceLinkText } from '../../utils/discoveryContextUpload.js'
+import { exactSourceLinkText } from '../../utils/discoveryContextUpload.js'
 import 'react-vertical-timeline-component/style.min.css'
 import './CaseTimeline.css'
+
+/** Shape expected by CasePage `TimelineSourcePanel`. */
+function buildTimelineSourcePanelCard(slice, conflictId = null) {
+  return {
+    date: slice.date ?? '',
+    title: slice.title ?? '',
+    description: slice.description ?? '',
+    doc_id: slice.doc_id,
+    source_context: slice.source_context,
+    confidence: slice.confidence,
+    support_score: slice.support_score,
+    conflict_id: conflictId ?? slice.conflict_id ?? null,
+  }
+}
 
 /** Parser confidence below this → treat as weak. */
 const WEAK_CONFIDENCE_MAX = 0.55
@@ -43,11 +56,11 @@ function TimelineDot({ weak }) {
         cx="10"
         cy="10"
         r="8"
-        fill={weak ? '#2f3648' : '#37456d'}
-        stroke={weak ? 'rgba(232, 238, 252, 0.22)' : 'rgba(232, 238, 252, 0.35)'}
+        fill={weak ? '#4a4538' : '#1c2744'}
+        stroke={weak ? 'rgba(184, 148, 62, 0.35)' : 'rgba(184, 148, 62, 0.55)'}
         strokeWidth="2"
       />
-      <circle cx="10" cy="10" r="4" fill={weak ? 'rgba(232, 238, 252, 0.5)' : '#e8eefc'} />
+      <circle cx="10" cy="10" r="4" fill={weak ? 'rgba(246, 243, 234, 0.5)' : '#f6f3ea'} />
     </svg>
   )
 }
@@ -130,16 +143,21 @@ function ChevronIcon({ open }) {
   )
 }
 
-/** Deep-link to Discovery for this event’s source (context library row or discovered doc). */
-function TimelineSourceLink({ caseId, sourceContext: sc, docId, variant = 'simple' }) {
-  const href = discoveryContextUploadHref(caseId, sc, docId)
-  const linkText = (exactSourceLinkText(sc, docId) || (href ? 'Open in Discovery' : '')).trim()
+/** Opens in-dashboard source panel (CasePage); Discovery remains available inside the panel. */
+function TimelineSourceLink({
+  sourceContext: sc,
+  docId,
+  variant = 'simple',
+  panelCard,
+  onOpenSourcePanel,
+}) {
+  const label = (exactSourceLinkText(sc, docId) || 'View source').trim()
   const fork = variant === 'fork'
   const wrapClass = fork ? 'timeline-fork-card-source' : 'timeline-simple-card-source'
   const linkClass = fork ? 'timeline-fork-card-source-link' : 'timeline-simple-card-source-link'
   const fallbackClass = fork ? 'timeline-fork-card-source-fallback' : 'timeline-simple-card-source-fallback'
 
-  if (!href) {
+  if (!onOpenSourcePanel || !panelCard) {
     return (
       <div className={wrapClass}>
         <p className={fallbackClass}>Not linked to Context Library or ingest metadata.</p>
@@ -149,9 +167,9 @@ function TimelineSourceLink({ caseId, sourceContext: sc, docId, variant = 'simpl
 
   return (
     <div className={wrapClass}>
-      <Link className={linkClass} to={href}>
-        {linkText || 'Open in Discovery'}
-      </Link>
+      <button type="button" className={linkClass} onClick={() => onOpenSourcePanel(panelCard)}>
+        {label}
+      </button>
     </div>
   )
 }
@@ -194,8 +212,15 @@ function previewForSelectedBranch(item, selectedEventsIndex) {
   }
 }
 
-function ForkCollapsedPanel({ caseId, item, selectedEventsIndex, onExpand, weak }) {
+function ForkCollapsedPanel({
+  item,
+  selectedEventsIndex,
+  onExpand,
+  weak,
+  onOpenSourcePanel,
+}) {
   const p = previewForSelectedBranch(item, selectedEventsIndex)
+  const panelCard = buildTimelineSourcePanelCard(p, item.conflict_id)
 
   return (
     <div className={`pd-fork-collapsed${weak ? ' pd-fork-collapsed--weak' : ''}`}>
@@ -212,9 +237,10 @@ function ForkCollapsedPanel({ caseId, item, selectedEventsIndex, onExpand, weak 
         </button>
         <TimelineSourceLink
           variant="fork"
-          caseId={caseId}
           sourceContext={p.source_context}
           docId={p.doc_id}
+          panelCard={panelCard}
+          onOpenSourcePanel={onOpenSourcePanel}
         />
       </div>
     </div>
@@ -237,7 +263,6 @@ function sortForkStackCards(cards, selectedEventsIndex) {
 }
 
 function TimelineBranchBlock({
-  caseId,
   item,
   selectedEventsIndex,
   algorithmicWinnerIndex,
@@ -245,6 +270,7 @@ function TimelineBranchBlock({
   onCollapse,
   rootRef,
   maxPrimarySupport,
+  onOpenSourcePanel,
 }) {
   const conflictId = item.conflict_id
   const bl = item.branch_llm
@@ -287,7 +313,7 @@ function TimelineBranchBlock({
       </div>
       <div className="timeline-fork-header">
         <TimelineForkIcon />
-        <span>Conflicting accounts — use the source link on each card to open Discovery, or prefer a version below</span>
+        <span>Conflicting accounts — view source on each card, or prefer a version below</span>
       </div>
 
       {bl && !bl.skipped && (bl.comparison_summary || bl.model_error) && (
@@ -340,9 +366,10 @@ function TimelineBranchBlock({
                 <div className="timeline-fork-card-actions">
                   <TimelineSourceLink
                     variant="fork"
-                    caseId={caseId}
                     sourceContext={card.source_context}
                     docId={card.doc_id}
+                    panelCard={buildTimelineSourcePanelCard(card, conflictId)}
+                    onOpenSourcePanel={onOpenSourcePanel}
                   />
                   {!selected && (
                     <button
@@ -370,16 +397,17 @@ function TimelineBranchBlock({
 }
 
 const timelineContentStyle = {
-  background: 'rgba(232, 238, 252, 0.07)',
-  color: '#e8eefc',
-  border: '1px solid rgba(232, 238, 252, 0.14)',
+  background: '#f6f3ea',
+  color: '#1c2744',
+  border: '1px solid #d4c09a',
+  borderTop: '3px solid #b8943e',
   borderRadius: '14px',
-  boxShadow: '0 4px 16px rgba(5, 10, 24, 0.3)',
+  boxShadow: '0 8px 20px rgba(5, 10, 24, 0.24)',
   padding: '20px 24px',
 }
 
 const timelineArrowStyle = {
-  borderRight: '7px solid rgba(232, 238, 252, 0.07)',
+  borderRight: '7px solid #f6f3ea',
 }
 
 /* Bubble visuals live on .pd-timeline-node-bubble (inner); outer icon is a transparent stack */
@@ -389,15 +417,22 @@ const timelineNodeOuterIconStyle = {
   boxShadow: 'none',
 }
 
-export default function CaseTimeline({ caseId, events, branchPick, onPreferBranch }) {
+/** Collapse expanded forks when this much or less of the block is still in view (≈75% scrolled past). */
+const FORK_COLLAPSE_MAX_VISIBLE_RATIO = 0.25
+
+export default function CaseTimeline({ events, branchPick, onPreferBranch, onOpenSourcePanel }) {
   const [expandedForkIds, setExpandedForkIds] = useState(() => new Set())
   const expandedRootRefs = useRef(new Map())
+  /** Once a fork has been at least FORK_COLLAPSE_MAX_VISIBLE_RATIO in view, allow auto-collapse below that. */
+  const forkScrollArmRef = useRef(new Map())
 
   const expandFork = useCallback((id) => {
+    forkScrollArmRef.current.delete(id)
     setExpandedForkIds((prev) => new Set(prev).add(id))
   }, [])
 
   const collapseFork = useCallback((id) => {
+    forkScrollArmRef.current.delete(id)
     setExpandedForkIds((prev) => {
       const next = new Set(prev)
       next.delete(id)
@@ -405,7 +440,7 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
     })
   }, [])
 
-  /** Collapse expanded forks when the user scrolls them fully out of the visible area. */
+  /** Collapse expanded forks once less than ~25% remains in view (user has scrolled ~75% past). */
   useLayoutEffect(() => {
     if (expandedForkIds.size === 0) return undefined
 
@@ -422,11 +457,19 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
       const obs = new IntersectionObserver(
         (entries) => {
           const entry = entries[0]
-          if (entry && !entry.isIntersecting) {
+          if (!entry) return
+          const ratio = entry.intersectionRatio
+          if (ratio >= FORK_COLLAPSE_MAX_VISIBLE_RATIO) {
+            forkScrollArmRef.current.set(id, true)
+          } else if (forkScrollArmRef.current.get(id)) {
             collapseFork(id)
           }
         },
-        { threshold: 0, root, rootMargin: '0px' },
+        {
+          root,
+          rootMargin: '0px',
+          threshold: [0, 0.25, 0.5, 0.75, 1],
+        },
       )
       obs.observe(el)
       observers.push(obs)
@@ -443,7 +486,7 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
 
   return (
     <div className="pd-vtl-wrap">
-      <VerticalTimeline layout="2-columns" lineColor="rgba(232, 238, 252, 0.22)" animate>
+      <VerticalTimeline layout="2-columns" lineColor="rgba(184, 148, 62, 0.45)" animate>
         {events.map((event, index) => {
           const algorithmicWinnerIndex = event.events_json_index
           const selectedIdx =
@@ -484,21 +527,21 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
               <TimelineDateNearNode date={event.date} sortDate={event.sort_date} />
               {branch && !expanded ? (
                 <ForkCollapsedPanel
-                  caseId={caseId}
                   item={event}
                   selectedEventsIndex={selectedIdx}
                   onExpand={() => expandFork(event.id)}
                   weak={collapsedPreviewWeak}
+                  onOpenSourcePanel={onOpenSourcePanel}
                 />
               ) : branch ? (
                 <TimelineBranchBlock
-                  caseId={caseId}
                   item={event}
                   selectedEventsIndex={selectedIdx}
                   algorithmicWinnerIndex={algorithmicWinnerIndex}
                   onPrefer={onPreferBranch}
                   onCollapse={() => collapseFork(event.id)}
                   maxPrimarySupport={maxPrimarySupport}
+                  onOpenSourcePanel={onOpenSourcePanel}
                   rootRef={(el) => {
                     if (el) expandedRootRefs.current.set(event.id, el)
                     else expandedRootRefs.current.delete(event.id)
@@ -509,9 +552,10 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
                   <h3 className="timeline-event-title">{event.title}</h3>
                   <p className="timeline-event-desc">{event.description}</p>
                   <TimelineSourceLink
-                    caseId={caseId}
                     sourceContext={event.source_context}
                     docId={event.doc_id}
+                    panelCard={buildTimelineSourcePanelCard(event, event.conflict_id)}
+                    onOpenSourcePanel={onOpenSourcePanel}
                   />
                 </div>
               )}

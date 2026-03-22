@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { CircularProgressbarWithChildren, buildStyles } from 'react-circular-progressbar'
 import 'react-circular-progressbar/dist/styles.css'
 import './CasePage.css'
 import CaseTimeline from './CaseTimeline.jsx'
+import CaseTimelineContextModal from './CaseTimelineContextModal.jsx'
 import ContextUploadPage from '../ContextUploadPage/ContextUploadPage.jsx'
 import LiveSession from '../LiveSessionPage/LiveSession.jsx'
+import { shouldDisplayTimelineEntry } from '../../utils/timelineFilter.js'
 
 const STATUS_ORDER = ['done', 'in_progress', 'upcoming']
 const STATUS_LABELS = { done: 'Done', in_progress: 'In Progress', upcoming: 'Upcoming' }
@@ -67,146 +69,6 @@ function mapTimelineEntryFromApi(e) {
     alternates,
     hasBranch: alternates.length > 0,
   }
-}
-
-function TimelineSourcePanel({ caseId, card, onClose }) {
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  if (!card) return null
-
-  const sc = card.source_context || {}
-  const docId = card.doc_id || sc.rag_doc_id
-  const exactHref = discoveryContextUploadHref(caseId, sc, docId)
-  const discoveryFallback =
-    caseId?.trim() != null ? `/case/${encodeURIComponent(caseId.trim())}/context-upload` : null
-
-  return (
-    <div className="timeline-source-overlay" role="presentation" onClick={onClose}>
-      <div
-        className="timeline-source-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="timeline-source-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button type="button" className="timeline-source-close" onClick={onClose} aria-label="Close">
-          ×
-        </button>
-        <h3 id="timeline-source-title" className="timeline-source-heading">Event source</h3>
-        <p className="timeline-source-date">{card.date}</p>
-        <h4 className="timeline-source-event-title">{card.title}</h4>
-        <blockquote className="timeline-source-quote">{card.description || '—'}</blockquote>
-
-        <div className="timeline-source-section">
-          <h5 className="timeline-source-subheading">Retrieved from</h5>
-          {sc.kind === 'context_library' && (
-            <dl className="timeline-source-dl">
-              <dt>Context</dt>
-              <dd>{sc.title || sc.label}</dd>
-              {sc.type && (
-                <>
-                  <dt>Type</dt>
-                  <dd>{sc.type}</dd>
-                </>
-              )}
-              {sc.added_at && (
-                <>
-                  <dt>Added</dt>
-                  <dd>{sc.added_at}</dd>
-                </>
-              )}
-              {sc.source_url && (
-                <>
-                  <dt>URL</dt>
-                  <dd>
-                    <a href={sc.source_url} target="_blank" rel="noreferrer">
-                      {sc.source_url}
-                    </a>
-                  </dd>
-                </>
-              )}
-              {sc.file_name && (
-                <>
-                  <dt>File</dt>
-                  <dd>{sc.file_name}</dd>
-                </>
-              )}
-            </dl>
-          )}
-          {sc.kind === 'ingested_document' && (
-            <dl className="timeline-source-dl">
-              <dt>Source</dt>
-              <dd>{sc.label || 'Ingested document'}</dd>
-              {sc.ingest_source && (
-                <>
-                  <dt>Ingest channel</dt>
-                  <dd>{sc.ingest_source}</dd>
-                </>
-              )}
-              {sc.timestamp && (
-                <>
-                  <dt>Ingested</dt>
-                  <dd>{sc.timestamp}</dd>
-                </>
-              )}
-              {sc.source_url && (
-                <>
-                  <dt>URL</dt>
-                  <dd>
-                    <a href={sc.source_url} target="_blank" rel="noreferrer">
-                      {sc.source_url}
-                    </a>
-                  </dd>
-                </>
-              )}
-            </dl>
-          )}
-          {(sc.kind === 'unknown' || !sc.kind) && (
-            <p className="timeline-source-unknown">{sc.label || 'No document link on this event.'}</p>
-          )}
-          {docId && (
-            <p className="timeline-source-docid">
-              <span className="timeline-source-docid-label">Document ID</span>
-              <code>{docId}</code>
-            </p>
-          )}
-        </div>
-
-        {(card.confidence != null || card.support_score != null) && (
-          <div className="timeline-source-meta-row">
-            {card.confidence != null && (
-              <span>Parser confidence: {Number(card.confidence).toFixed(2)}</span>
-            )}
-            {card.support_score != null && (
-              <span>Timeline score: {Number(card.support_score).toFixed(3)}</span>
-            )}
-          </div>
-        )}
-
-        <div className="timeline-source-actions">
-          {exactHref ? (
-            <Link
-              className="timeline-source-discovery-btn"
-              to={exactHref}
-              onClick={() => onClose()}
-            >
-              Exact source
-            </Link>
-          ) : discoveryFallback ? (
-            <Link className="timeline-source-discovery-btn" to={discoveryFallback} onClick={() => onClose()}>
-              Open Discovery
-            </Link>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 const TABS = ['Case Dashboard', 'Discovery', 'Live Session']
@@ -371,7 +233,10 @@ export default function CasePage({ cases }) {
         }
         const data = await res.json()
         const entries = data?.primary?.entries ?? []
-        const mapped = [...entries].reverse().map((e) => mapTimelineEntryFromApi(e))
+        const mapped = [...entries]
+          .reverse()
+          .map((e) => mapTimelineEntryFromApi(e))
+          .filter(shouldDisplayTimelineEntry)
         if (!cancelled) setTimelineEvents(mapped)
       } catch (err) {
         if (!cancelled) {
@@ -470,7 +335,7 @@ export default function CasePage({ cases }) {
           <main className="main-content case-page-content">
             <div className="case-page-top">
               <section className="task-checklist">
-                <h2 className="checklist-heading">Tasks</h2>
+                <h2 className="stat-card-heading task-checklist-heading">Tasks</h2>
                 <div className="checklist-scroll">
                   {STATUS_ORDER.map((status) => {
                     const items = groupedTasks[status]
@@ -495,7 +360,7 @@ export default function CasePage({ cases }) {
               <div className="case-page-sidebar">
                 <div className="stat-card stat-card--research">
                   <div className="stat-card-research-top">
-                    <h2 className="stat-card-heading stat-card-heading--research">Research agent</h2>
+                    <h2 className="stat-card-heading">Research agent</h2>
                     {researchSummary && researchRunIsFresh(researchSummary.last_run_at) ? (
                       <span className="research-live-badge" title="A research pass finished within the last 2 minutes">
                         <span className="research-live-dot" aria-hidden />
@@ -573,7 +438,10 @@ export default function CasePage({ cases }) {
 
             <section className="case-timeline-section">
               <h2 className="timeline-heading">Timeline</h2>
-              <p className="timeline-subhint">Use the source link on each event to open the exact item in Discovery.</p>
+              <p className="timeline-subhint">
+                Click the source on an event to open the same context preview as Discovery (files, PDFs, links) without
+                leaving the dashboard.
+              </p>
               {timelineLoading && <p className="timeline-event-desc">Loading timeline…</p>}
               {timelineError && !timelineLoading && (
                 <p className="timeline-event-desc" role="alert">{timelineError}</p>
@@ -584,10 +452,10 @@ export default function CasePage({ cases }) {
               {!timelineLoading && !timelineError && timelineEvents.length > 0 && (
                 <div className="case-timeline-center-wrap">
                   <CaseTimeline
-                    caseId={caseId}
                     events={timelineEvents}
                     branchPick={branchPick}
                     onPreferBranch={handlePreferBranch}
+                    onOpenSourcePanel={setSourcePanelCard}
                   />
                 </div>
               )}
@@ -596,13 +464,11 @@ export default function CasePage({ cases }) {
         )}
       </div>
 
-      {sourcePanelCard && (
-        <TimelineSourcePanel
-          caseId={caseId}
-          card={sourcePanelCard}
-          onClose={() => setSourcePanelCard(null)}
-        />
-      )}
+      <CaseTimelineContextModal
+        caseId={caseId}
+        timelineCard={sourcePanelCard}
+        onClose={() => setSourcePanelCard(null)}
+      />
     </>
   )
 }
