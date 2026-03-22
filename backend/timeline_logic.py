@@ -52,6 +52,22 @@ def _timelines_path(case_id: str):
     return default_cases_root() / case_id / "timelines.json"
 
 
+def _research_doc_ids(case_id: str) -> set[str]:
+    """Return doc_ids whose metadata source is 'web' (research agent results)."""
+    meta_dir = default_cases_root() / case_id / "metadata"
+    if not meta_dir.is_dir():
+        return set()
+    ids: set[str] = set()
+    for fp in meta_dir.glob("*.json"):
+        try:
+            meta = json.loads(fp.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if isinstance(meta, dict) and meta.get("source") == "web":
+            ids.add(fp.stem)
+    return ids
+
+
 def read_case_events(case_id: str) -> list[dict[str, Any]]:
     p = _events_path(case_id)
     if not p.is_file():
@@ -62,7 +78,11 @@ def read_case_events(case_id: str) -> list[dict[str, Any]]:
         return []
     if not isinstance(data, list):
         return []
-    return [e for e in data if isinstance(e, dict)]
+    exclude = _research_doc_ids(case_id)
+    return [
+        e for e in data
+        if isinstance(e, dict) and str(e.get("doc_id") or "").strip() not in exclude
+    ]
 
 
 def normalized_sort_date(date_val: str | None) -> str | None:
