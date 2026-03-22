@@ -392,6 +392,15 @@
   color: #cfe0ff;
 }
 
+/* Inline source link next to “Compare accounts” (same styles as expanded fork link) */
+.pd-fork-collapsed-actions .timeline-fork-card-source {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
 .pd-fork-chevron {
   transition: transform 0.2s ease;
 }

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from datetime import datetime, timezone
 
@@ -15,6 +16,7 @@ from research.prompts import run_generate_queries, run_score_result
 from research.state import MAX_ITERATIONS, RELEVANCE_THRESHOLD
 
 router = APIRouter(prefix="/research", tags=["research"])
+_logger = logging.getLogger(__name__)
 
 # Base URL for the RAG service (teammate's backend)
 RAG_BASE = os.environ.get("RAG_BASE_URL", "http://localhost:8000")
@@ -89,6 +91,33 @@ class RunResearchResponse(BaseModel):
     stop_reason: str
     all_stored_results: list[dict]
     iteration: int
+
+
+class ResearchCaseSummaryOut(BaseModel):
+    case_id: str
+    unique_sources_count: int
+    total_runs: int
+    last_run_at: str | None = None
+    last_run_added_unique: int | None = None
+    last_batch_stored_count: int | None = None
+    last_stop_reason: str | None = None
+    last_iteration: int | None = None
+
+
+# ---------------------------------------------------------------------------
+# GET /research/cases/{case_id}/summary  — dashboard running totals
+# ---------------------------------------------------------------------------
+
+
+@router.get("/cases/{case_id}/summary", response_model=ResearchCaseSummaryOut)
+def get_research_case_summary(case_id: str) -> ResearchCaseSummaryOut:
+    from research.case_summary import public_summary
+
+    try:
+        d = public_summary(case_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return ResearchCaseSummaryOut(**d)
 
 
 # ---------------------------------------------------------------------------
@@ -366,6 +395,18 @@ async def run_research(req: RunResearchRequest):
     initial = initial_research_graph_state(req.case_id)
 
     final = await research_subgraph.ainvoke(initial)
+
+    try:
+        from research.case_summary import record_research_run
+
+        record_research_run(
+            req.case_id.strip(),
+            list(final.get("all_stored_results") or []),
+            final.get("stop_reason"),
+            int(final.get("iteration") or 0),
+        )
+    except Exception:
+        _logger.exception("Failed to persist research summary for case %s", req.case_id)
 
     return RunResearchResponse(
         case_id=req.case_id,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -8,11 +9,9 @@ from context_catalog import (
     set_rag_doc_id_for_context,
     set_rag_ingest_failed,
 )
-from schemas import StoreDocumentRequest
 from storage import ensure_case_dirs
 
 from .document_extract import extract_text_from_docx, extract_text_from_pdf
-from .router import store_document_for_rag
 
 logger = logging.getLogger(__name__)
 
@@ -94,23 +93,22 @@ def _format_ingest_error(exc: Exception) -> str:
 
 
 def background_ingest_context_to_rag(case_id: str, row: dict[str, Any]) -> None:
-    """Runs after HTTP response; failures are logged and stored on the catalog row."""
+    """Runs after HTTP response: full case LangGraph (ingest → events → timeline → research), then links catalog row to doc_id."""
     ctx_id = str(row.get("id") or "")
     try:
         raw = build_raw_text_for_context_rag(case_id, row)
         if not raw.strip():
             return
-        # RAG artifacts live under cases/{case_id}/documents|structured|metadata (see storage.ensure_case_dirs).
         ensure_case_dirs(case_id)
-        payload = StoreDocumentRequest(
-            case_id=case_id,
-            raw_text=raw,
-            source="upload",
-            timestamp=None,
+        from workflow import initial_case_state, run_case_workflow
+
+        final = asyncio.run(
+            run_case_workflow(initial_case_state(case_id, raw, "upload", context_id=ctx_id)),
         )
-        result = store_document_for_rag(payload)
-        if ctx_id and result.doc_id:
-            set_rag_doc_id_for_context(case_id, ctx_id, result.doc_id)
+        docs = final.get("documents") or []
+        doc_id = str((docs[-1] or {}).get("doc_id") or "").strip()
+        if ctx_id and doc_id:
+            set_rag_doc_id_for_context(case_id, ctx_id, doc_id)
     except Exception as exc:
         logger.exception("Background RAG ingest failed for context %s", row.get("id"))
         if ctx_id:

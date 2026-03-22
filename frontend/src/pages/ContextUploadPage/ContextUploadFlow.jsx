@@ -96,7 +96,7 @@ export function TextUploadFlow({ open, onClose, onAddItem }) {
               className="context-upload-textarea context-upload-textarea--tall"
               value={draft.body}
               onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
-              placeholder="Write your note here…"
+              placeholder="Facts, deposition prep, interrogatory themes, privilege observations — paste or type here…"
               rows={14}
               autoFocus
             />

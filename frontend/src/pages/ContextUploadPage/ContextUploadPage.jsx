@@ -600,7 +600,7 @@ export default function ContextUploadPage({ onBack, caseId }) {
       contextItems.map((item) => item.ragDocId).filter(Boolean),
     )
     const web = discoveredDocs
-      .filter((row) => !linkedRagIds.has(row.doc_id))
+      .filter((row) => !linkedRagIds.has(row.doc_id) && row.metadata?.source !== 'upload')
       .map((row) => ({ kind: 'web', row }))
     const catalog = contextItems.map((item) => ({ kind: 'catalog', item }))
     return [...web, ...catalog]

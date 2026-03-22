@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import mimetypes
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,9 +22,11 @@ from context_catalog import (
     context_library_paths,
 )
 from storage import delete_stored_document_files, ensure_case_dirs
+from case_events_merge import remove_events_for_context_id, remove_events_for_doc_id
 from rag.context_rag import background_ingest_context_to_rag
 
 router = APIRouter(prefix="/cases/{case_id}/contexts", tags=["contexts"])
+_logger = logging.getLogger(__name__)
 
 ALLOWED_TYPES = frozenset({"text", "image", "video", "audio", "document", "research"})
 
@@ -253,6 +256,17 @@ def delete_context(case_id: str, item_id: str) -> dict[str, str]:
         except OSError:
             pass
 
+    ctx_row_id = str(found.get("id") or "").strip()
+    if ctx_row_id:
+        try:
+            remove_events_for_context_id(case_id, ctx_row_id)
+        except Exception:
+            _logger.exception(
+                "Failed to remove events for deleted context_id=%s case_id=%s",
+                ctx_row_id,
+                case_id,
+            )
+
     rag_doc = found.get("rag_doc_id")
     if rag_doc:
         rid = str(rag_doc).strip()
@@ -261,6 +275,24 @@ def delete_context(case_id: str, item_id: str) -> dict[str, str]:
 
             delete_chunks_for_doc_id(rid)
             delete_stored_document_files(case_id, rid)
+            try:
+                remove_events_for_doc_id(case_id, rid)
+            except Exception:
+                _logger.exception(
+                    "Failed to remove events for deleted context doc_id=%s case_id=%s",
+                    rid,
+                    case_id,
+                )
+
+    try:
+        from timeline_logic import rebuild_case_timeline
+
+        rebuild_case_timeline(case_id)
+    except Exception:
+        _logger.exception(
+            "Failed to rebuild timelines after context delete case_id=%s",
+            case_id,
+        )
 
     write_catalog(case_id, rest)
     return {"status": "deleted", "id": item_id}

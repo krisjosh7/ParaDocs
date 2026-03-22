@@ -87,6 +87,8 @@ class Event(BaseModel):
     date: str | None = None
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     source_span: str = ""
+    # Discovery context library row id (ctx-…); set at merge time, not by the LLM.
+    context_id: str | None = None
 
 
 class Claim(BaseModel):

@@ -1,5 +1,4 @@
-"""
-LangGraph subgraph for the research pipeline.
+"""LangGraph subgraph for the research pipeline.
 
 Topology:
     START
@@ -15,6 +14,8 @@ Topology:
 Each node calls the corresponding router function directly (no HTTP hop).
 The router functions own the business logic; the graph owns the wiring.
 """
+
+import logging
 
 from langgraph.graph import StateGraph, START, END
 
@@ -34,6 +35,8 @@ from research.router import (
     decide,
 )
 
+_logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # Nodes
@@ -46,7 +49,15 @@ async def load_context_node(state: ResearchState) -> dict:
     Entry point. Queries the RAG database to build case_facts from
     existing documents and initialises seen_result_ids for this run.
     """
-    result = await load_context(LoadContextRequest(case_id=state["case_id"]))
+    case_id = state["case_id"]
+    result = await load_context(LoadContextRequest(case_id=case_id))
+    cf = result.case_facts or ""
+    _logger.info(
+        "Phase 3/3 research: load_context done case_id=%s case_facts_chars=%d seen_ids=%d",
+        case_id,
+        len(cf),
+        len(result.seen_result_ids or []),
+    )
     return {
         "case_facts": result.case_facts,
         "seen_result_ids": result.seen_result_ids,
@@ -67,8 +78,16 @@ async def generate_queries_node(state: ResearchState) -> dict:
         queries_run=state["queries_run"],
         n=3,
     ))
+    new_iter = state["iteration"] + 1
+    q = result.queries_to_run or []
+    _logger.info(
+        "Phase 3/3 research: generate_queries done case_id=%s iteration=%d new_queries=%d",
+        state["case_id"],
+        new_iter,
+        len(q),
+    )
     return {
-        "iteration": state["iteration"] + 1,
+        "iteration": new_iter,
         "queries_to_run": result.queries_to_run,
         # Accumulate — LLM sees the full history next iteration
         "queries_run": state["queries_run"] + result.queries_to_run,
@@ -88,6 +107,13 @@ async def search_node(state: ResearchState) -> dict:
         top_result_ids=state["top_result_ids"],
         seen_result_ids=state["seen_result_ids"],
     ))
+    raw = result.raw_results or []
+    _logger.info(
+        "Phase 3/3 research: search done case_id=%s iteration=%s raw_results=%d (CourtListener + citation chase)",
+        state["case_id"],
+        state["iteration"],
+        len(raw),
+    )
     return {"raw_results": result.raw_results}
 
 
@@ -102,6 +128,15 @@ async def score_node(state: ResearchState) -> dict:
         raw_results=state["raw_results"],
         seen_result_ids=state["seen_result_ids"],
     ))
+    scored = result.scored_results or []
+    tops = result.top_result_ids or []
+    _logger.info(
+        "Phase 3/3 research: score done case_id=%s iteration=%s scored=%d top_result_ids=%d",
+        state["case_id"],
+        state["iteration"],
+        len(scored),
+        len(tops),
+    )
     return {
         "scored_results": result.scored_results,
         "top_result_ids": result.top_result_ids,
@@ -119,6 +154,14 @@ async def store_node(state: ResearchState) -> dict:
         scored_results=state["scored_results"],
         seen_result_ids=state["seen_result_ids"],
     ))
+    batch = result.all_stored_results or []
+    _logger.info(
+        "Phase 3/3 research: store done case_id=%s iteration=%s stored_this_round=%d cumulative=%d",
+        state["case_id"],
+        state["iteration"],
+        len(batch),
+        len(state["all_stored_results"]) + len(batch),
+    )
     return {
         # Append this iteration's stored results to the running total
         "all_stored_results": state["all_stored_results"] + result.all_stored_results,
@@ -135,6 +178,13 @@ async def decide_node(state: ResearchState) -> dict:
         iteration=state["iteration"],
         scored_results=state["scored_results"],
     ))
+    _logger.info(
+        "Phase 3/3 research: decide case_id=%s iteration=%s stop_reason=%s continue=%s",
+        state["case_id"],
+        state["iteration"],
+        result.stop_reason,
+        result.stop_reason is None,
+    )
     return {"stop_reason": result.stop_reason}
 
 

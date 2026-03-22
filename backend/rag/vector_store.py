@@ -1,30 +1,14 @@
 from __future__ import annotations
 
-import os
-from functools import lru_cache
-from pathlib import Path
 from uuid import uuid4
 
-import chromadb
-from chromadb.api.models.Collection import Collection
-
-from .embedding import embed_texts
-
-COLLECTION_NAME = "case_documents"
+from .chroma_collection import delete_chunks_for_doc_id, get_collection
 
 
-def _backend_root() -> Path:
-    """backend/ directory (parent of the rag package)."""
-    return Path(__file__).resolve().parent.parent
+def _embed_texts(texts: list[str]):
+    from .embedding import embed_texts
 
-
-@lru_cache(maxsize=1)
-def get_collection() -> Collection:
-    persist_dir = os.environ.get("CHROMA_PERSIST_DIR", "").strip()
-    if not persist_dir:
-        persist_dir = str((_backend_root() / "chroma").resolve())
-    client = chromadb.PersistentClient(path=persist_dir)
-    return client.get_or_create_collection(name=COLLECTION_NAME, metadata={"hnsw:space": "cosine"})
+    return embed_texts(texts)
 
 
 def _distance_to_score(distance: float | int | None) -> float:
@@ -49,24 +33,12 @@ def _chroma_metadata(metadata: dict) -> dict:
     return out
 
 
-def delete_chunks_for_doc_id(doc_id: str) -> None:
-    """Remove all vector rows for a document so re-ingest does not leave orphans or duplicates."""
-    if not doc_id.strip():
-        return
-    collection = get_collection()
-    try:
-        collection.delete(where={"doc_id": doc_id})
-    except Exception:
-        # Older Chroma / empty collection: best-effort
-        pass
-
-
 def upsert_text_records(records: list[dict]) -> int:
     if not records:
         return 0
     collection = get_collection()
     docs = [r["document"] for r in records]
-    vectors = embed_texts(docs)
+    vectors = _embed_texts(docs)
     ids = [r.get("id") or str(uuid4()) for r in records]
     metadatas = [_chroma_metadata(r["metadata"]) for r in records]
     collection.upsert(ids=ids, documents=docs, metadatas=metadatas, embeddings=vectors)
@@ -80,7 +52,7 @@ def query_case(
     type_filter: str | None = None,
 ) -> list[dict]:
     collection = get_collection()
-    query_embedding = embed_texts([query])[0]
+    query_embedding = _embed_texts([query])[0]
     if type_filter:
         where: dict = {"$and": [{"case_id": case_id}, {"type": type_filter}]}
     else:

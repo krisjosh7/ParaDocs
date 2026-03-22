@@ -6,7 +6,6 @@ import './CasePage.css'
 import CaseTimeline from './CaseTimeline.jsx'
 import ContextUploadPage from '../ContextUploadPage/ContextUploadPage.jsx'
 import LiveSession from '../LiveSessionPage/LiveSession.jsx'
-import { discoveryContextUploadHref } from '../../utils/discoveryContextUpload.js'
 
 const STATUS_ORDER = ['done', 'in_progress', 'upcoming']
 const STATUS_LABELS = { done: 'Done', in_progress: 'In Progress', upcoming: 'Upcoming' }
@@ -46,6 +45,7 @@ function mapTimelineEntryFromApi(e) {
     events_json_index: a.events_json_index,
     conflict_id: a.conflict_id ?? e.conflict_id,
     doc_id: a.doc_id,
+    context_id: a.context_id ?? null,
     confidence: a.confidence,
     support_score: a.support_score,
     source_context: mapSourceContext(a.source_context),
@@ -59,6 +59,7 @@ function mapTimelineEntryFromApi(e) {
     events_json_index: e.events_json_index,
     conflict_id: e.conflict_id,
     doc_id: e.doc_id,
+    context_id: e.context_id ?? null,
     confidence: e.confidence,
     support_score: e.support_score,
     source_context: mapSourceContext(e.source_context),
@@ -68,133 +69,6 @@ function mapTimelineEntryFromApi(e) {
   }
 }
 
-function TimelineSourcePanel({ card, onClose, onOpenDiscovery }) {
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  if (!card) return null
-
-  const sc = card.source_context || {}
-  const docId = card.doc_id || sc.rag_doc_id
-
-  return (
-    <div className="timeline-source-overlay" role="presentation" onClick={onClose}>
-      <div
-        className="timeline-source-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="timeline-source-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button type="button" className="timeline-source-close" onClick={onClose} aria-label="Close">
-          ×
-        </button>
-        <h3 id="timeline-source-title" className="timeline-source-heading">Event source</h3>
-        <p className="timeline-source-date">{card.date}</p>
-        <h4 className="timeline-source-event-title">{card.title}</h4>
-        <blockquote className="timeline-source-quote">{card.description || '—'}</blockquote>
-
-        <div className="timeline-source-section">
-          <h5 className="timeline-source-subheading">Retrieved from</h5>
-          {sc.kind === 'context_library' && (
-            <dl className="timeline-source-dl">
-              <dt>Context</dt>
-              <dd>{sc.title || sc.label}</dd>
-              {sc.type && (
-                <>
-                  <dt>Type</dt>
-                  <dd>{sc.type}</dd>
-                </>
-              )}
-              {sc.added_at && (
-                <>
-                  <dt>Added</dt>
-                  <dd>{sc.added_at}</dd>
-                </>
-              )}
-              {sc.source_url && (
-                <>
-                  <dt>URL</dt>
-                  <dd>
-                    <a href={sc.source_url} target="_blank" rel="noreferrer">
-                      {sc.source_url}
-                    </a>
-                  </dd>
-                </>
-              )}
-              {sc.file_name && (
-                <>
-                  <dt>File</dt>
-                  <dd>{sc.file_name}</dd>
-                </>
-              )}
-            </dl>
-          )}
-          {sc.kind === 'ingested_document' && (
-            <dl className="timeline-source-dl">
-              <dt>Source</dt>
-              <dd>{sc.label || 'Ingested document'}</dd>
-              {sc.ingest_source && (
-                <>
-                  <dt>Ingest channel</dt>
-                  <dd>{sc.ingest_source}</dd>
-                </>
-              )}
-              {sc.timestamp && (
-                <>
-                  <dt>Ingested</dt>
-                  <dd>{sc.timestamp}</dd>
-                </>
-              )}
-              {sc.source_url && (
-                <>
-                  <dt>URL</dt>
-                  <dd>
-                    <a href={sc.source_url} target="_blank" rel="noreferrer">
-                      {sc.source_url}
-                    </a>
-                  </dd>
-                </>
-              )}
-            </dl>
-          )}
-          {(sc.kind === 'unknown' || !sc.kind) && (
-            <p className="timeline-source-unknown">{sc.label || 'No document link on this event.'}</p>
-          )}
-          {docId && (
-            <p className="timeline-source-docid">
-              <span className="timeline-source-docid-label">Document ID</span>
-              <code>{docId}</code>
-            </p>
-          )}
-        </div>
-
-        {(card.confidence != null || card.support_score != null) && (
-          <div className="timeline-source-meta-row">
-            {card.confidence != null && (
-              <span>Parser confidence: {Number(card.confidence).toFixed(2)}</span>
-            )}
-            {card.support_score != null && (
-              <span>Timeline score: {Number(card.support_score).toFixed(3)}</span>
-            )}
-          </div>
-        )}
-
-        <div className="timeline-source-actions">
-          <button type="button" className="timeline-source-discovery-btn" onClick={onOpenDiscovery}>
-            Exact source
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 const TABS = ['Case Dashboard', 'Discovery', 'Live Session']
 
 const API_BASE = (
@@ -202,6 +76,32 @@ const API_BASE = (
   import.meta.env.VITE_API_URL ||
   'http://127.0.0.1:8000'
 ).replace(/\/$/, '')
+
+function formatResearchStopReason(reason) {
+  if (!reason) return null
+  const labels = {
+    max_iter: 'Iteration cap reached',
+    no_new_results: 'No new matches',
+  }
+  return labels[reason] || String(reason).replace(/_/g, ' ')
+}
+
+function formatRelativeTime(iso) {
+  if (!iso) return null
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return null
+  const sec = Math.floor((Date.now() - t) / 1000)
+  if (sec < 50) return 'just now'
+  if (sec < 3600) return `${Math.max(1, Math.floor(sec / 60))} min ago`
+  if (sec < 86400) return `${Math.floor(sec / 3600)} hr ago`
+  return `${Math.floor(sec / 86400)}d ago`
+}
+
+function researchRunIsFresh(iso, withinMs = 120000) {
+  if (!iso) return false
+  const t = Date.parse(iso)
+  return !Number.isNaN(t) && Date.now() - t < withinMs
+}
 
 export default function CasePage({ cases }) {
   const { caseId } = useParams()
@@ -259,7 +159,29 @@ export default function CasePage({ cases }) {
   const [timelineLoading, setTimelineLoading] = useState(false)
   const [timelineError, setTimelineError] = useState(null)
   const [branchPick, setBranchPick] = useState({})
-  const [sourcePanelCard, setSourcePanelCard] = useState(null)
+  const [researchSummary, setResearchSummary] = useState(null)
+  const [researchSummaryError, setResearchSummaryError] = useState(null)
+
+  const fetchResearchSummary = useCallback(async () => {
+    if (!caseId) return
+    try {
+      const res = await fetch(`${API_BASE}/research/cases/${encodeURIComponent(caseId)}/summary`)
+      if (!res.ok) {
+        throw new Error(`Research summary failed (${res.status})`)
+      }
+      setResearchSummary(await res.json())
+      setResearchSummaryError(null)
+    } catch (err) {
+      setResearchSummaryError(err instanceof Error ? err.message : 'Failed to load')
+    }
+  }, [caseId])
+
+  useEffect(() => {
+    if (!caseId || isDiscoveryRoute || activeTab !== 'Case Dashboard') return undefined
+    fetchResearchSummary()
+    const timer = window.setInterval(fetchResearchSummary, 12000)
+    return () => window.clearInterval(timer)
+  }, [caseId, isDiscoveryRoute, activeTab, fetchResearchSummary])
 
   useEffect(() => {
     if (!caseId) {
@@ -294,15 +216,6 @@ export default function CasePage({ cases }) {
     },
     [caseId],
   )
-
-  const openDiscoveryFromPanel = useCallback(() => {
-    const card = sourcePanelCard
-    setSourcePanelCard(null)
-    const sc = card?.source_context || {}
-    const docId = card?.doc_id ?? sc?.rag_doc_id
-    const path = discoveryContextUploadHref(caseId, sc, docId)
-    navigate(path ?? `/case/${caseId}/context-upload`)
-  }, [caseId, navigate, sourcePanelCard])
 
   useEffect(() => {
     if (!caseId || isDiscoveryRoute) return undefined
@@ -439,11 +352,60 @@ export default function CasePage({ cases }) {
               </section>
 
               <div className="case-page-sidebar">
-                <div className="stat-card">
-                  <h2 className="stat-card-heading">Research Phase</h2>
-                  <div className="stat-card-body">
-                    <strong className="stat-big-number">10</strong>
-                    <span className="stat-description">sources found by agent</span>
+                <div className="stat-card stat-card--research">
+                  <div className="stat-card-research-top">
+                    <h2 className="stat-card-heading stat-card-heading--research">Research agent</h2>
+                    {researchSummary && researchRunIsFresh(researchSummary.last_run_at) ? (
+                      <span className="research-live-badge" title="A research pass finished within the last 2 minutes">
+                        <span className="research-live-dot" aria-hidden />
+                        Live
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="stat-card-body stat-card-body--research">
+                    <div className="research-hero">
+                      <strong className="stat-big-number stat-big-number--research" aria-live="polite">
+                        {researchSummary == null && !researchSummaryError ? '…' : researchSummary?.unique_sources_count ?? 0}
+                      </strong>
+                      <span className="research-hero-caption">unique opinions indexed</span>
+                    </div>
+                    <div className="research-meta-strip">
+                      <div className="research-meta-chip" title="Completed research passes for this case">
+                        <span className="research-meta-chip-label">Passes</span>
+                        <span className="research-meta-chip-value">{researchSummary?.total_runs ?? 0}</span>
+                      </div>
+                      <div className="research-meta-chip" title="Sources stored in the most recent pass">
+                        <span className="research-meta-chip-label">Last batch</span>
+                        <span className="research-meta-chip-value">
+                          {researchSummary?.last_batch_stored_count ?? '—'}
+                        </span>
+                      </div>
+                    </div>
+                    {researchSummary?.last_run_at ? (
+                      <p className="research-last-run">
+                        <span className="research-last-run-label">Last run</span>
+                        <span className="research-last-run-time">{formatRelativeTime(researchSummary.last_run_at)}</span>
+                        {researchSummary.last_run_added_unique != null && researchSummary.last_run_added_unique > 0 ? (
+                          <span className="research-last-run-new">+{researchSummary.last_run_added_unique} new</span>
+                        ) : null}
+                        {formatResearchStopReason(researchSummary.last_stop_reason) ? (
+                          <span className="research-last-run-stop">
+                            · {formatResearchStopReason(researchSummary.last_stop_reason)}
+                          </span>
+                        ) : null}
+                      </p>
+                    ) : researchSummary && researchSummary.total_runs === 0 ? (
+                      <p className="research-empty-hint">
+                        No agent runs yet. Add context in Discovery — each ingest kicks off the full pipeline including
+                        CourtListener research when configured.
+                      </p>
+                    ) : null}
+                    {researchSummaryError ? (
+                      <p className="research-summary-error" role="alert">
+                        {researchSummaryError}
+                      </p>
+                    ) : null}
+                    <p className="research-poll-hint">Updates every 12s while you&apos;re on this tab.</p>
                   </div>
                 </div>
 
@@ -470,7 +432,7 @@ export default function CasePage({ cases }) {
 
             <section className="case-timeline-section">
               <h2 className="timeline-heading">Timeline</h2>
-              <p className="timeline-subhint">Click an event to see which context or document it came from.</p>
+              <p className="timeline-subhint">Use the source link on each event to open the exact item in Discovery.</p>
               {timelineLoading && <p className="timeline-event-desc">Loading timeline…</p>}
               {timelineError && !timelineLoading && (
                 <p className="timeline-event-desc" role="alert">{timelineError}</p>
@@ -485,7 +447,6 @@ export default function CasePage({ cases }) {
                     events={timelineEvents}
                     branchPick={branchPick}
                     onPreferBranch={handlePreferBranch}
-                    onOpenSource={setSourcePanelCard}
                   />
                 </div>
               )}
@@ -494,13 +455,6 @@ export default function CasePage({ cases }) {
         )}
       </div>
 
-      {sourcePanelCard && (
-        <TimelineSourcePanel
-          card={sourcePanelCard}
-          onClose={() => setSourcePanelCard(null)}
-          onOpenDiscovery={openDiscoveryFromPanel}
-        />
-      )}
     </>
   )
 }

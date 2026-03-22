@@ -140,6 +140,7 @@ def _entry_dict(
     sort_d = row["sort_date"]
     title = str(ev.get("event") or "").strip() or "(event)"
     desc = str(ev.get("source_span") or "").strip()
+    cxid = str(ev.get("context_id") or "").strip() or None
     out: dict[str, Any] = {
         "id": f"ev-{case_id}-{i}",
         "title": title,
@@ -147,6 +148,7 @@ def _entry_dict(
         "date_display": date_raw_s or (sort_d or ""),
         "sort_date": sort_d,
         "doc_id": ev.get("doc_id"),
+        "context_id": cxid,
         "source_span": ev.get("source_span"),
         "confidence": ev.get("confidence"),
         "support_score": round(row["score"], 6),
@@ -154,7 +156,7 @@ def _entry_dict(
     }
     if conflict_id is not None:
         out["conflict_id"] = conflict_id
-    out["source_context"] = resolve_timeline_source(case_id, ev.get("doc_id"))
+    out["source_context"] = resolve_timeline_source(case_id, ev.get("doc_id"), cxid)
     return out
 
 
