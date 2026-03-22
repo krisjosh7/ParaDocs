@@ -4,8 +4,8 @@
 
 .context-document-download-btn {
   display: inline-block;
-  border: 1px solid #2056d3;
-  background: #2056d3;
+  border: 1px solid #b8943e;
+  background: #b8943e;
   color: #fff;
   text-decoration: none;
   border-radius: 10px;
@@ -15,7 +15,7 @@
 }
 
 .context-document-download-btn:hover {
-  background: #1a4ab8;
+  background: #a07e30;
 }
 
 .context-document-download-btn--icon {

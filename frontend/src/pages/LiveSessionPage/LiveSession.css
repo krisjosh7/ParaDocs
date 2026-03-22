@@ -3,7 +3,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px 24px;
-  border-bottom: 1px solid rgba(232, 238, 252, 0.1);
+  border-bottom: 1px solid rgba(184, 148, 62, 0.2);
   flex-shrink: 0;
 }
 
@@ -25,10 +25,10 @@
   align-items: center;
   gap: 8px;
   padding: 10px 18px;
-  border: 1px solid rgba(232, 238, 252, 0.25);
+  border: 1px solid rgba(245, 240, 232, 0.25);
   border-radius: 999px;
-  background: #415076;
-  color: #e8eefc;
+  background: #2a3f6e;
+  color: #f5f0e8;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -37,7 +37,7 @@
 }
 
 .record-btn:hover {
-  background: #2056d3;
+  background: #b8943e;
   transform: translateY(-1px);
 }
 
@@ -54,7 +54,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: rgba(232, 238, 252, 0.5);
+  background: rgba(245, 240, 232, 0.5);
   flex-shrink: 0;
 }
 
@@ -98,17 +98,17 @@
 
 .session-transcript-panel::-webkit-scrollbar-thumb,
 .session-surfaced-panel::-webkit-scrollbar-thumb {
-  background: rgba(232, 238, 252, 0.15);
+  background: rgba(245, 240, 232, 0.15);
   border-radius: 4px;
 }
 
 .session-transcript-panel::-webkit-scrollbar-thumb:hover,
 .session-surfaced-panel::-webkit-scrollbar-thumb:hover {
-  background: rgba(232, 238, 252, 0.28);
+  background: rgba(245, 240, 232, 0.28);
 }
 
 .session-surfaced-panel {
-  border-left: 1px solid rgba(232, 238, 252, 0.1);
+  border-left: 1px solid rgba(184, 148, 62, 0.2);
   background: rgba(0, 0, 0, 0.12);
 }
 
@@ -116,14 +116,15 @@
   margin: 0 0 4px;
   font-size: 0.72rem;
   font-weight: 700;
+  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(232, 238, 252, 0.45);
+  color: rgba(184, 148, 62, 0.7);
 }
 
 .session-empty {
   margin: 0;
-  color: rgba(232, 238, 252, 0.35);
+  color: rgba(245, 240, 232, 0.35);
   font-size: 0.95rem;
   font-style: italic;
 }
@@ -146,7 +147,7 @@
   margin: 0;
   font-size: 1.05rem;
   line-height: 1.55;
-  color: #e8eefc;
+  color: #f5f0e8;
 }
 
 .transcript-speaker {
@@ -157,7 +158,7 @@
 }
 
 .transcript-line--attorney .transcript-speaker {
-  color: #93c5fd;
+  color: #d4a854;
 }
 
 .transcript-line--client .transcript-speaker {
@@ -172,8 +173,8 @@
 }
 
 @keyframes line-highlight {
-  0%   { background: rgba(250, 204, 21, 0.25); }
-  60%  { background: rgba(250, 204, 21, 0.15); }
+  0%   { background: rgba(184, 148, 62, 0.25); }
+  60%  { background: rgba(184, 148, 62, 0.15); }
   100% { background: transparent; }
 }
 
@@ -186,7 +187,7 @@
   display: inline-block;
   width: 2px;
   height: 1.1em;
-  background: rgba(232, 238, 252, 0.6);
+  background: rgba(245, 240, 232, 0.6);
   vertical-align: text-bottom;
   margin-left: 2px;
   animation: cursor-blink 1s step-end infinite;
@@ -206,8 +207,9 @@
 .surfaced-card {
   padding: 12px 14px;
   border-radius: 10px;
-  background: #2f3a52;
-  border: 1px solid rgba(232, 238, 252, 0.1);
+  background: #1e2d4a;
+  border: 1px solid rgba(245, 240, 232, 0.1);
+  border-left: 3px solid rgba(184, 148, 62, 0.35);
   animation: line-in 250ms ease;
 }
 
@@ -222,20 +224,20 @@
 }
 
 .surfaced-card--clickable:hover {
-  background: #3a4a66;
+  background: #243a5e;
 }
 
 .surfaced-card--expanded {
-  background: #3a4a66;
-  border-color: rgba(232, 238, 252, 0.2);
+  background: #243a5e;
+  border-color: rgba(245, 240, 232, 0.2);
 }
 
 
 .surfaced-jump-btn {
   background: none;
-  border: 1px solid rgba(232, 238, 252, 0.2);
+  border: 1px solid rgba(245, 240, 232, 0.2);
   border-radius: 999px;
-  color: rgba(232, 238, 252, 0.45);
+  color: rgba(245, 240, 232, 0.45);
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -246,8 +248,8 @@
 }
 
 .surfaced-jump-btn:hover {
-  color: rgba(232, 238, 252, 0.85);
-  border-color: rgba(232, 238, 252, 0.45);
+  color: rgba(245, 240, 232, 0.85);
+  border-color: rgba(245, 240, 232, 0.45);
 }
 
 .surfaced-card-header {
@@ -266,7 +268,8 @@
   flex: 1;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #e8eefc;
+  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
+  color: #f5f0e8;
   line-height: 1.3;
 }
 
@@ -274,9 +277,9 @@
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: #92400e;
-  background: rgba(250, 204, 21, 0.2);
-  border: 1px solid rgba(250, 204, 21, 0.4);
+  color: #6b4f1a;
+  background: rgba(184, 148, 62, 0.15);
+  border: 1px solid rgba(184, 148, 62, 0.35);
   padding: 1px 6px;
   border-radius: 999px;
   flex-shrink: 0;
@@ -318,13 +321,13 @@
 }
 
 .surfaced-action-btn--save {
-  background: rgba(99, 179, 237, 0.15);
-  border-color: rgba(99, 179, 237, 0.35);
-  color: #90cdf4;
+  background: rgba(184, 148, 62, 0.15);
+  border-color: rgba(184, 148, 62, 0.35);
+  color: #d4a854;
 }
 
 .surfaced-action-btn--save:hover:not(:disabled) {
-  background: rgba(99, 179, 237, 0.25);
+  background: rgba(184, 148, 62, 0.25);
 }
 
 .surfaced-action-btn--save:disabled {
@@ -345,9 +348,9 @@
 }
 
 .surfaced-action-btn--delete {
-  background: rgba(232, 238, 252, 0.06);
-  border-color: rgba(232, 238, 252, 0.15);
-  color: rgba(232, 238, 252, 0.5);
+  background: rgba(245, 240, 232, 0.06);
+  border-color: rgba(245, 240, 232, 0.15);
+  color: rgba(245, 240, 232, 0.5);
 }
 
 .surfaced-action-btn--delete:hover {
@@ -360,7 +363,7 @@
   margin: 0;
   font-size: 0.82rem;
   line-height: 1.45;
-  color: rgba(232, 238, 252, 0.6);
+  color: rgba(245, 240, 232, 0.6);
   font-style: italic;
 }
 
@@ -368,19 +371,19 @@
   display: inline-block;
   margin-top: 6px;
   font-size: 0.78rem;
-  color: rgba(140, 180, 255, 0.85);
+  color: rgba(184, 148, 62, 0.85);
   text-decoration: none;
 }
 .surfaced-link:hover {
   text-decoration: underline;
-  color: rgba(140, 180, 255, 1);
+  color: rgba(184, 148, 62, 1);
 }
 
 .surfaced-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(232, 238, 252, 0.15);
-  border-top-color: rgba(232, 238, 252, 0.6);
+  border: 2px solid rgba(245, 240, 232, 0.15);
+  border-top-color: rgba(245, 240, 232, 0.6);
   border-radius: 50%;
   animation: spin 700ms linear infinite;
   margin-top: 4px;
