@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import DocxPreview from './DocxPreview'
 
 export function getDownloadInfo(item) {
@@ -30,34 +30,15 @@ function formatVideoTime(seconds) {
   return `${mins}:${secs}`
 }
 
-/** Site favicon as thumbnail (same-origin not required); falls back to link emoji */
-export function WebSourcePreview({ url }) {
-  const [failed, setFailed] = useState(false)
-  const src = useMemo(() => {
-    if (!url?.trim()) return ''
-    try {
-      const u = new URL(url)
-      return `https://www.google.com/s2/favicons?sz=128&domain=${encodeURIComponent(u.origin)}`
-    } catch {
-      return ''
-    }
-  }, [url])
-  if (!src || failed) {
-    return (
-      <span className="context-saved-web-preview-fallback" aria-hidden>
-        🔗
-      </span>
-    )
-  }
+/** Inline preview for saved web / RAG link rows: link icon (no remote favicon). */
+export function WebSourcePreview() {
   return (
-    <img
-      src={src}
-      alt=""
-      className="context-saved-web-preview-img"
-      loading="lazy"
-      decoding="async"
-      onError={() => setFailed(true)}
-    />
+    <span className="context-saved-web-preview-link" aria-hidden>
+      <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1" />
+        <path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1" />
+      </svg>
+    </span>
   )
 }
 

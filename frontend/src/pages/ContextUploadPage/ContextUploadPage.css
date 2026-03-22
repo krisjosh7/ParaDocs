@@ -1181,7 +1181,7 @@
   border-radius: 999px;
 }
 
-/* Saved web sources: same fixed preview height as other cards; favicon fills the band */
+/* Saved web sources: same fixed preview height as other cards; link icon centered */
 .context-card-preview--saved-web {
   display: flex;
   align-items: center;
@@ -1190,19 +1190,16 @@
   overflow: hidden;
 }
 
-.context-saved-web-preview-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  background: #0f1520;
+.context-saved-web-preview-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(184, 148, 62, 0.9);
+  user-select: none;
 }
 
-.context-saved-web-preview-fallback {
-  font-size: 1.75rem;
-  line-height: 1;
-  opacity: 0.95;
-  user-select: none;
+.context-saved-web-preview-link svg {
+  flex-shrink: 0;
 }
 
 a.context-card-hit--discovered-link {

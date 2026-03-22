@@ -94,19 +94,20 @@ def build_raw_text_for_context_rag(case_id: str, row: dict[str, Any]) -> str:
 
 
 def _audio_rag_body_block(caption: str, transcript: str) -> str:
-    """Combine optional caption with ElevenLabs transcript for embedding."""
+    """Combine optional caption with STT transcript (ElevenLabs and/or Deepgram) for embedding."""
     parts: list[str] = []
     if caption:
         parts.append(
             "User-provided caption (for retrieval; aligns with the transcript below):\n"
             f"{caption}\n",
         )
-    parts.append("--- Transcript (ElevenLabs speech-to-text) ---\n")
+    parts.append("--- Transcript (speech-to-text) ---\n")
     if transcript.strip():
         parts.append(transcript.strip())
     else:
         parts.append(
-            "(No transcript was returned—set ELEVENLABS_API_KEY, check plan/access, or verify file format.)",
+            "(No transcript was returned—set ELEVENLABS_API_KEY and/or DEEPGRAM_API_KEY, "
+            "check plan/access, or verify file format.)",
         )
     return "\n".join(parts) + "\n"
 

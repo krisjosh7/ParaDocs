@@ -496,7 +496,7 @@ export default function ChatPage({ cases = [], apiBase = DEFAULT_API }) {
             })
             setChatError(null)
           } else {
-            setChatError('Could not transcribe audio. Try again or check ElevenLabs configuration.')
+            setChatError('Could not transcribe audio. Try again or check ELEVENLABS_API_KEY / DEEPGRAM_API_KEY.')
           }
         } catch {
           setChatError('Could not reach the server to transcribe.')
