@@ -20,6 +20,7 @@ from schemas import (
 )
 from storage import generate_doc_id, utc_now_iso, write_metadata, write_raw_text, write_structured
 from case_events_merge import append_events_from_ingest
+from timeline_logic import rebuild_case_timeline
 
 from .chunking import chunk_text
 from .parser import parse_legal_structure
@@ -229,6 +230,14 @@ def ingest_endpoint(payload: IngestRequest) -> IngestResponse:
             "Failed to merge events into events.json for case_id=%s doc_id=%s",
             document.case_id,
             document.doc_id,
+        )
+
+    try:
+        rebuild_case_timeline(document.case_id)
+    except Exception:
+        _logger.exception(
+            "Failed to rebuild timelines.json for case_id=%s",
+            document.case_id,
         )
 
     return IngestResponse(num_chunks=total_chunks, doc_id=document.doc_id)

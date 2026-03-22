@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { AudioUploadFlow, FileUploadFlow, ResearchUploadFlow, TextUploadFlow } from './ContextUploadFlow'
 import DocxPreview from './DocxPreview'
@@ -466,6 +467,7 @@ function ContextPreview({ item, compact, inModal }) {
 }
 
 export default function ContextUploadPage({ onBack, caseId }) {
+  const [searchParams] = useSearchParams()
   const [contextItems, setContextItems] = useState([])
   const [expandedId, setExpandedId] = useState(null)
   const [pageIndex, setPageIndex] = useState(0)
@@ -603,6 +605,42 @@ export default function ContextUploadPage({ onBack, caseId }) {
     const catalog = contextItems.map((item) => ({ kind: 'catalog', item }))
     return [...web, ...catalog]
   }, [discoveredDocs, contextItems])
+
+  useEffect(() => {
+    const raw = searchParams.get('focus')
+    const focus = raw != null ? String(raw).trim() : ''
+    if (!focus || !caseId?.trim()) return
+    if (listLoading || discoveredLoading) return
+
+    const pos = libraryEntries.findIndex((entry) => {
+      if (entry.kind === 'catalog') return entry.item.id === focus
+      return `discovered:${entry.row.doc_id}` === focus
+    })
+    if (pos < 0) return
+
+    const targetPage = Math.floor(pos / PAGE_SIZE)
+    setPageIndex(targetPage)
+
+    const openCatalogModal = !focus.startsWith('discovered:')
+    if (openCatalogModal) {
+      setExpandedId(focus)
+    } else {
+      setExpandedId(null)
+    }
+
+    const tid = window.setTimeout(() => {
+      const safe =
+        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+          ? CSS.escape(focus)
+          : focus.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+      const el = document.querySelector(`[data-context-id="${safe}"]`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el?.classList.add('context-card--focus-highlight')
+      window.setTimeout(() => el?.classList.remove('context-card--focus-highlight'), 2200)
+    }, 160)
+
+    return () => window.clearTimeout(tid)
+  }, [searchParams, caseId, listLoading, discoveredLoading, libraryEntries])
 
   const allLibraryIds = useMemo(
     () =>

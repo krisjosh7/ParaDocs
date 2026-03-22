@@ -60,10 +60,24 @@ class Document(BaseModel):
 # -----------------------------------------------------------------------------
 
 
+_PARTY_ROLES = frozenset({"plaintiff", "defendant", "other"})
+
+
 class Party(BaseModel):
     name: str = ""
     role: Literal["plaintiff", "defendant", "other"] = "other"
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def coerce_party_role(cls, v: object) -> str:
+        """LLMs often emit labels like 'contracting' or 'party'; only three roles are legal."""
+        if v is None:
+            return "other"
+        s = str(v).strip().lower()
+        if s in _PARTY_ROLES:
+            return s
+        return "other"
 
 
 class Event(BaseModel):
