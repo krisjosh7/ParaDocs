@@ -10,6 +10,8 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from research.courtlistener import search_opinions
+from rag.router import store_document_for_rag
+from schemas import StoreDocumentRequest
 
 router = APIRouter(prefix="/session", tags=["session"])
 
@@ -75,8 +77,9 @@ class SessionQueryResponse(BaseModel):
 
 class SaveToContextRequest(BaseModel):
     case_id: str
-    raw_text: str    # the excerpt/snippet to store
-    source: str      # human-readable label (case name)
+    label: str       # case name / title
+    excerpt: str = ""  # snippet text
+    url: str = ""      # source URL (e.g. CourtListener link)
 
 
 # ---------------------------------------------------------------------------
@@ -152,23 +155,35 @@ async def save_to_context(req: SaveToContextRequest):
     Saves a surfaced case snippet into the RAG store so it becomes searchable
     within the case's document context going forward.
 
-    Assumes RAG /store accepts: { case_id, doc_id, text, source, url }.
-    Adjust the payload keys to match your teammate's RAG schema if needed.
+    Calls store_document_for_rag directly instead of HTTP self-call to avoid
+    deadlocking a single-worker uvicorn server.
     """
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            resp = await client.post(
-                f"{RAG_BASE}/store",
-                json={
-                    "case_id": req.case_id,
-                    "raw_text": req.raw_text,
-                    "source": "web",
-                },
-            )
-            resp.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail=f"RAG store failed: {exc}")
-    return {"ok": True}
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Build a rich text block so the stored document is self-contained
+    parts = [req.label]
+    if req.url:
+        parts.append(f"Source: {req.url}")
+    if req.excerpt:
+        parts.append(f"\n{req.excerpt}")
+    raw_text = "\n".join(parts)
+
+    logger.info("save-to-context: case_id=%s, raw_text length=%d", req.case_id, len(raw_text))
+
+    try:
+        result = store_document_for_rag(StoreDocumentRequest(
+            case_id=req.case_id,
+            raw_text=raw_text,
+            source="web",
+        ))
+        logger.info("save-to-context: stored doc_id=%s, chunks=%d", result.doc_id, result.num_chunks)
+    except HTTPException:
+        raise  # re-raise FastAPI HTTPExceptions as-is
+    except Exception as exc:
+        logger.exception("save-to-context failed")
+        raise HTTPException(status_code=502, detail=f"RAG store failed: {exc}")
+    return {"ok": True, "doc_id": result.doc_id}
 
 
 # ---------------------------------------------------------------------------
