@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
@@ -18,10 +19,13 @@ from schemas import (
     StructuredHitOut,
 )
 from storage import generate_doc_id, utc_now_iso, write_metadata, write_raw_text, write_structured
+from case_events_merge import append_events_from_ingest
 
 from .chunking import chunk_text
 from .parser import parse_legal_structure
 from .vector_store import delete_chunks_for_doc_id, query_case, upsert_text_records
+
+_logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["rag"])
 
@@ -215,6 +219,18 @@ def ingest_endpoint(payload: IngestRequest) -> IngestResponse:
     if document.source_url:
         meta_row["source_url"] = document.source_url
     write_metadata(document.case_id, document.doc_id, meta_row)
+
+    # Phase 1 case event index: merge this doc's events into cases/{case_id}/events.json
+    # (runs for every ingest: Discovery /store pipeline, POST /ingest, POST /store, etc.)
+    try:
+        append_events_from_ingest(document.case_id, document.doc_id, structured)
+    except Exception:
+        _logger.exception(
+            "Failed to merge events into events.json for case_id=%s doc_id=%s",
+            document.case_id,
+            document.doc_id,
+        )
+
     return IngestResponse(num_chunks=total_chunks, doc_id=document.doc_id)
 
 
