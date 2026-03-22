@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/session", tags=["session"])
 
 RAG_BASE = os.environ.get("RAG_BASE_URL", "http://localhost:8000")
-_ELEVENLABS_STT_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 
 # Don't bother querying for one-word answers like "Yes" or "Okay"
 MIN_TEXT_LENGTH = 20
@@ -70,6 +69,10 @@ def _elevenlabs_api_key() -> str:
     return os.environ.get("ELEVENLABS_API_KEY", "").strip()
 
 
+def _deepgram_api_key() -> str:
+    return os.environ.get("DEEPGRAM_API_KEY", "").strip()
+
+
 # ---------------------------------------------------------------------------
 # Request / Response models
 # ---------------------------------------------------------------------------
@@ -113,29 +116,32 @@ class SaveToContextRequest(BaseModel):
 @router.post("/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
     """
-    Accepts a raw audio blob from the browser's MediaRecorder,
-    sends it to ElevenLabs Scribe for transcription, and returns the text.
+    Accepts a raw audio blob from the browser's MediaRecorder.
+    Tries ElevenLabs Scribe first, then Deepgram if the first call fails or returns empty.
     """
-    key = _elevenlabs_api_key()
-    if not key:
-        raise HTTPException(status_code=500, detail="ELEVENLABS_API_KEY is not set")
+    from deepgram_stt import transcribe_upload_bytes_async as deepgram_transcribe_bytes
+    from elevenlabs_stt import transcribe_upload_bytes_async as elevenlabs_transcribe_bytes
 
-    audio_bytes = await audio.read()
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(
-            _ELEVENLABS_STT_URL,
-            headers={"xi-api-key": key},
-            files={"file": ("audio.webm", audio_bytes, "audio/webm")},
-            data={"model_id": "scribe_v1", "language_code": "en"},
+    el_key = _elevenlabs_api_key()
+    dg_key = _deepgram_api_key()
+    if not el_key and not dg_key:
+        raise HTTPException(
+            status_code=500,
+            detail="Set ELEVENLABS_API_KEY and/or DEEPGRAM_API_KEY for speech-to-text",
         )
 
-    if resp.status_code != 200:
-        print(f"[ElevenLabs STT] error {resp.status_code}: {resp.text[:200]}")
-        return {"text": ""}
+    audio_bytes = await audio.read()
+    mime = audio.content_type or "audio/webm"
+    filename = audio.filename or "audio.webm"
 
-    text = resp.json().get("text", "").strip()
-    return {"text": text}
+    text = ""
+    if el_key:
+        text = await elevenlabs_transcribe_bytes(filename, audio_bytes, mime)
+    if text.strip():
+        return {"text": text.strip()}
+    if dg_key:
+        text = await deepgram_transcribe_bytes(filename, audio_bytes, mime)
+    return {"text": text.strip()}
 
 
 # ---------------------------------------------------------------------------

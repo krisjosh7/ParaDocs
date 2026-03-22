@@ -38,7 +38,7 @@ def is_image_suffix(suffix: str) -> bool:
     return suffix.lower() in _IMAGE_MIME
 
 
-# Extensions we treat as audio/video-for-transcription for context RAG (ElevenLabs STT).
+# Extensions we treat as audio/video-for-transcription for context RAG (ElevenLabs / Deepgram STT).
 _AUDIO_SUFFIXES: frozenset[str] = frozenset(
     {
         ".mp3",

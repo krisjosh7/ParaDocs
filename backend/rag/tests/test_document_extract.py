@@ -117,4 +117,4 @@ def test_context_rag_audio_includes_caption_and_transcript(tmp_path: Path, monke
     out = build_raw_text_for_context_rag(case_id, row)
     assert "Witness statement excerpt" in out
     assert "spoken content" in out
-    assert "Transcript (ElevenLabs speech-to-text)" in out
+    assert "Transcript (speech-to-text)" in out

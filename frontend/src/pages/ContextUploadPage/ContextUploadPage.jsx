@@ -634,7 +634,7 @@ export default function ContextUploadPage({ onBack, caseId }) {
                           const hitBody = (
                             <>
                               <div className="context-card-preview context-card-preview--compact context-card-preview--saved-web">
-                                <WebSourcePreview url={url} />
+                                <WebSourcePreview />
                               </div>
                               <div className="context-card-footer">
                                 <div className="context-card-meta-row">

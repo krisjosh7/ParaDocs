@@ -496,7 +496,7 @@ export default function ChatPage({ cases = [], apiBase = DEFAULT_API }) {
             })
             setChatError(null)
           } else {
-            setChatError('Could not transcribe audio. Try again or check ElevenLabs configuration.')
+            setChatError('Could not transcribe audio. Try again or check ELEVENLABS_API_KEY / DEEPGRAM_API_KEY.')
           }
         } catch {
           setChatError('Could not reach the server to transcribe.')
@@ -620,9 +620,9 @@ export default function ChatPage({ cases = [], apiBase = DEFAULT_API }) {
                     <div className="chat-hero-mark">
                       <ChatHeroMark />
                     </div>
-                    <h2 className="chat-hero-title">Welcome</h2>
+                    <h2 className="chat-hero-title">Welcome to Lex</h2>
                     <p className="chat-hero-sub">
-                      Ask anything about your case documents—or turn off case context for a general conversation.
+                      Ask Lex anything about your case documents—or turn off case context for a general conversation.
                     </p>
                   </header>
                 </div>
