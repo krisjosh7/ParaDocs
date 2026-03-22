@@ -22,6 +22,7 @@ from routes_chat import router as chat_router
 from routes_contexts import router as contexts_router
 from routes_discovered import router as discovered_router
 from routes_timeline import router as timeline_router
+from routes_case_workflow import router as case_workflow_router
 from rag.router import router as rag_router
 from rag.vector_store import delete_chunks_for_case_id
 from storage import create_case_record, default_cases_root, delete_case_tree, list_case_summaries
@@ -49,6 +50,7 @@ app.include_router(chat_router)
 app.include_router(contexts_router)
 app.include_router(discovered_router)
 app.include_router(timeline_router)
+app.include_router(case_workflow_router)
 
 
 def cleanup_session_media() -> None:

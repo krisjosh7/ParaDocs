@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { CircularProgressbarWithChildren, buildStyles } from 'react-circular-progressbar'
 import 'react-circular-progressbar/dist/styles.css'
 import './CasePage.css'
@@ -68,7 +68,7 @@ function mapTimelineEntryFromApi(e) {
   }
 }
 
-function TimelineSourcePanel({ card, onClose, onOpenDiscovery }) {
+function TimelineSourcePanel({ caseId, card, onClose }) {
   useEffect(() => {
     function onKey(e) {
       if (e.key === 'Escape') onClose()
@@ -81,6 +81,9 @@ function TimelineSourcePanel({ card, onClose, onOpenDiscovery }) {
 
   const sc = card.source_context || {}
   const docId = card.doc_id || sc.rag_doc_id
+  const exactHref = discoveryContextUploadHref(caseId, sc, docId)
+  const discoveryFallback =
+    caseId?.trim() != null ? `/case/${encodeURIComponent(caseId.trim())}/context-upload` : null
 
   return (
     <div className="timeline-source-overlay" role="presentation" onClick={onClose}>
@@ -186,9 +189,19 @@ function TimelineSourcePanel({ card, onClose, onOpenDiscovery }) {
         )}
 
         <div className="timeline-source-actions">
-          <button type="button" className="timeline-source-discovery-btn" onClick={onOpenDiscovery}>
-            Exact source
-          </button>
+          {exactHref ? (
+            <Link
+              className="timeline-source-discovery-btn"
+              to={exactHref}
+              onClick={() => onClose()}
+            >
+              Exact source
+            </Link>
+          ) : discoveryFallback ? (
+            <Link className="timeline-source-discovery-btn" to={discoveryFallback} onClick={() => onClose()}>
+              Open Discovery
+            </Link>
+          ) : null}
         </div>
       </div>
     </div>
@@ -294,15 +307,6 @@ export default function CasePage({ cases }) {
     },
     [caseId],
   )
-
-  const openDiscoveryFromPanel = useCallback(() => {
-    const card = sourcePanelCard
-    setSourcePanelCard(null)
-    const sc = card?.source_context || {}
-    const docId = card?.doc_id ?? sc?.rag_doc_id
-    const path = discoveryContextUploadHref(caseId, sc, docId)
-    navigate(path ?? `/case/${caseId}/context-upload`)
-  }, [caseId, navigate, sourcePanelCard])
 
   useEffect(() => {
     if (!caseId || isDiscoveryRoute) return undefined
@@ -496,9 +500,9 @@ export default function CasePage({ cases }) {
 
       {sourcePanelCard && (
         <TimelineSourcePanel
+          caseId={caseId}
           card={sourcePanelCard}
           onClose={() => setSourcePanelCard(null)}
-          onOpenDiscovery={openDiscoveryFromPanel}
         />
       )}
     </>

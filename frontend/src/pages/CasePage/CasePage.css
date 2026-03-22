@@ -388,6 +388,19 @@
   outline: none;
 }
 
+.timeline-simple-card--weak .timeline-event-title {
+  color: rgba(245, 240, 232, 0.62);
+}
+
+.timeline-simple-card--weak .timeline-event-desc {
+  color: rgba(232, 238, 252, 0.46);
+}
+
+.timeline-simple-card--weak:hover,
+.timeline-simple-card--weak:focus-visible {
+  background: rgba(232, 238, 252, 0.03);
+}
+
 .timeline-fork-card-main {
   display: block;
   width: 100%;
@@ -579,6 +592,9 @@
 }
 
 .timeline-source-discovery-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 10px 16px;
   border-radius: 10px;
   border: 1px solid rgba(232, 238, 252, 0.2);
@@ -587,6 +603,8 @@
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
   transition: background-color 140ms ease;
 }
 
@@ -680,21 +698,31 @@
 }
 
 .timeline-fork-card--muted .timeline-fork-card-inner {
-  background: rgba(20, 28, 48, 0.55);
-  border-color: rgba(232, 238, 252, 0.06);
+  background: rgba(18, 24, 42, 0.65);
 }
 
 .timeline-fork-card--muted {
-  opacity: 0.52;
-  filter: grayscale(0.2);
+  /* Avoid whole-card opacity (it crushes contrast on links + body text). */
+  border-color: rgba(232, 238, 252, 0.08);
+  background: rgba(8, 12, 24, 0.45);
 }
 
 .timeline-fork-card--muted .timeline-event-title {
-  color: rgba(232, 238, 252, 0.55);
+  color: rgba(245, 240, 232, 0.82);
 }
 
 .timeline-fork-card--muted .timeline-event-desc {
-  color: rgba(232, 238, 252, 0.38);
+  color: rgba(232, 238, 252, 0.7);
+}
+
+.timeline-fork-card--selected {
+  border-color: rgba(158, 197, 255, 0.35);
+  background: rgba(30, 42, 72, 0.45);
+  box-shadow: 0 0 0 1px rgba(120, 160, 255, 0.12);
+}
+
+.timeline-fork-card--selected .timeline-fork-card-inner {
+  background: transparent;
 }
 
 .vertical-timeline-element-content-arrow {

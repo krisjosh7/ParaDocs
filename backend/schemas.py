@@ -26,6 +26,8 @@ class StoreDocumentRequest(BaseModel):
     timestamp: str | datetime | None = None
     # When set (e.g. live session save), persisted on disk in metadata for context library links.
     source_url: str | None = None
+    # When True, ingest skips events.json merge and timeline rebuild (case LangGraph runs them).
+    defer_case_index: bool = False
 
     @field_validator("timestamp", mode="before")
     @classmethod
@@ -140,6 +142,7 @@ class StoreResponse(BaseModel):
 class IngestRequest(BaseModel):
     document: Document
     structured: StructuredDocument
+    defer_case_index: bool = False
 
 
 class IngestResponse(BaseModel):
