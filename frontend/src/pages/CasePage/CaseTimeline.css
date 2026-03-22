@@ -321,6 +321,16 @@
   border-right-color: var(--pd-cream) !important;
 }
 
+/* Library targets .vertical-timeline-element-icon svg with relative + 50% + negative margins
+   for direct SVG children; our SVG lives inside .pd-timeline-node-bubble, so reset that or the
+   fork/dot sits on the edge of the circle. */
+.pd-vtl-wrap .pd-timeline-node-bubble svg {
+  position: static;
+  left: auto;
+  top: auto;
+  margin: 0;
+}
+
 .pd-timeline-dot-svg,
 .pd-timeline-fork-svg {
   width: 20px;
