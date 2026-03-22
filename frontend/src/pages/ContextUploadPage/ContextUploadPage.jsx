@@ -414,6 +414,7 @@ function ContextPreview({ item, compact, inModal }) {
           title={`PDF preview: ${item.title}`}
           src={item.pdfSrc}
           loading={compact ? 'lazy' : undefined}
+          scrolling="no"
         />
       </div>
     )
@@ -426,6 +427,7 @@ function ContextPreview({ item, compact, inModal }) {
             title={`Document preview: ${item.title}`}
             src={item.documentSrc}
             loading={compact ? 'lazy' : undefined}
+            scrolling="no"
           />
         </div>
       )
@@ -434,6 +436,19 @@ function ContextPreview({ item, compact, inModal }) {
       return (
         <div className={`context-card-preview context-card-preview--docx ${compact ? 'context-card-preview--compact' : ''}`}>
           <DocxPreview src={item.documentSrc} title={item.title} lazy={Boolean(compact)} />
+        </div>
+      )
+    }
+    if (item.docSubtype === 'generic' && item.documentSrc) {
+      return (
+        <div className={`context-card-preview context-card-preview--txt ${compact ? 'context-card-preview--compact' : ''}`}>
+          <iframe
+            title={`Text preview: ${item.title}`}
+            src={item.documentSrc}
+            loading={compact ? 'lazy' : undefined}
+            sandbox=""
+            scrolling="no"
+          />
         </div>
       )
     }
@@ -470,6 +485,7 @@ export default function ContextUploadPage({ onBack, caseId }) {
   const [selectedIds, setSelectedIds] = useState([])
   const [selectionMode, setSelectionMode] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [fetchedTextCache, setFetchedTextCache] = useState({})
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
@@ -576,7 +592,14 @@ export default function ContextUploadPage({ onBack, caseId }) {
   }, [bulkDeleting, caseId, expandedId, refreshContexts, selectedIds])
 
   const libraryEntries = useMemo(() => {
-    const web = discoveredDocs.map((row) => ({ kind: 'web', row }))
+    // Catalog items linked to a RAG doc via rag_doc_id — filter those out
+    // of discoveredDocs so the same upload doesn't show up twice.
+    const linkedRagIds = new Set(
+      contextItems.map((item) => item.ragDocId).filter(Boolean),
+    )
+    const web = discoveredDocs
+      .filter((row) => !linkedRagIds.has(row.doc_id))
+      .map((row) => ({ kind: 'web', row }))
     const catalog = contextItems.map((item) => ({ kind: 'catalog', item }))
     return [...web, ...catalog]
   }, [discoveredDocs, contextItems])
@@ -614,6 +637,24 @@ export default function ContextUploadPage({ onBack, caseId }) {
     [contextItems, expandedId],
   )
   const downloadInfo = useMemo(() => (expanded ? getDownloadInfo(expanded) : null), [expanded])
+
+  // Fetch text content on demand for plain-text document cards
+  useEffect(() => {
+    if (!expanded) return
+    if (expanded.type !== 'document' || expanded.docSubtype !== 'generic') return
+    if (!expanded.documentSrc) return
+    if (fetchedTextCache[expanded.id]) return
+    let cancelled = false
+    fetch(expanded.documentSrc)
+      .then((res) => (res.ok ? res.text() : null))
+      .then((text) => {
+        if (!cancelled && text != null) {
+          setFetchedTextCache((prev) => ({ ...prev, [expanded.id]: text }))
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [expanded, fetchedTextCache])
 
   const startTextUpload = useCallback(() => {
     setFabOpen(false)
@@ -1231,7 +1272,13 @@ export default function ContextUploadPage({ onBack, caseId }) {
                 <ContextPreview item={expanded} compact={false} inModal />
               ) : expanded.type === 'document' && expanded.docSubtype === 'generic' ? (
                 <div className="context-document-modal">
-                  <p>{expanded.fileName || expanded.title}</p>
+                  {fetchedTextCache[expanded.id] ? (
+                    <pre className="context-text-full">{fetchedTextCache[expanded.id]}</pre>
+                  ) : expanded.documentSrc ? (
+                    <p className="context-text-loading">Loading content…</p>
+                  ) : (
+                    <p>{expanded.fileName || expanded.title}</p>
+                  )}
                 </div>
               ) : (
                 <ContextPreview item={expanded} compact={false} inModal />

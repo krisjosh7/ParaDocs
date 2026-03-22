@@ -44,6 +44,7 @@ class ContextItemOut(BaseModel):
     docSubtype: str | None = None
     uploadedFile: bool | None = None
     sourceUrl: str | None = None
+    ragDocId: str | None = None
 
 
 class ContextListOut(BaseModel):
@@ -101,6 +102,7 @@ def _catalog_to_response_item(
         docSubtype=ds,
         uploadedFile=bool(stored_s),
         sourceUrl=source_url_out if ctype == "research" and source_url_out else None,
+        ragDocId=row.get("rag_doc_id") or None,
     )
 
 

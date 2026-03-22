@@ -80,6 +80,7 @@ export function normalizeContextItemFromApi(row) {
     docSubtype,
     uploadedFile: row.uploadedFile,
   }
+  if (row.ragDocId || row.rag_doc_id) item.ragDocId = row.ragDocId || row.rag_doc_id
   if (row.sourceUrl) item.sourceUrl = row.sourceUrl
   if (row.imageSrc) item.imageSrc = row.imageSrc
   if (row.videoSrc) item.videoSrc = row.videoSrc
