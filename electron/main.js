@@ -47,6 +47,7 @@ function startBackend() {
     '127.0.0.1',
     '--port',
     '8000',
+    '--reload',
   ]
   backendProc = spawn(exe, args, {
     cwd: backendDir,

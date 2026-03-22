@@ -20,7 +20,7 @@ from context_catalog import (
     write_catalog,
     context_library_paths,
 )
-from storage import delete_stored_document_files
+from storage import delete_stored_document_files, ensure_case_dirs
 from rag.context_rag import background_ingest_context_to_rag
 
 router = APIRouter(prefix="/cases/{case_id}/contexts", tags=["contexts"])
@@ -45,6 +45,8 @@ class ContextItemOut(BaseModel):
     uploadedFile: bool | None = None
     sourceUrl: str | None = None
     ragDocId: str | None = None
+    # Set when background RAG ingest fails (e.g. missing GROQ_API_KEY); cleared on success.
+    ragIngestError: str | None = None
 
 
 class ContextListOut(BaseModel):
@@ -86,6 +88,9 @@ def _catalog_to_response_item(
     src_url = row.get("source_url")
     source_url_out = str(src_url).strip() if src_url else None
 
+    rag_err = row.get("rag_ingest_error")
+    rag_ingest_error_out = str(rag_err).strip() if isinstance(rag_err, str) and rag_err.strip() else None
+
     return ContextItemOut(
         id=cid,
         type=ctype,
@@ -102,7 +107,8 @@ def _catalog_to_response_item(
         docSubtype=ds,
         uploadedFile=bool(stored_s),
         sourceUrl=source_url_out if ctype == "research" and source_url_out else None,
-        ragDocId=row.get("rag_doc_id") or None,
+        ragDocId=(str(rid).strip() if (rid := row.get("rag_doc_id")) else None),
+        ragIngestError=rag_ingest_error_out,
     )
 
 
@@ -210,6 +216,8 @@ async def create_context(
 
     catalog.append(row)
     write_catalog(case_id, catalog)
+    # Ensure cases/{case_id}/documents, structured, metadata, … exist before background RAG runs.
+    ensure_case_dirs(case_id)
     # Research links are library-only; RAG for web material is handled by live session "Save to context".
     if ctype != "research":
         background_tasks.add_task(background_ingest_context_to_rag, case_id, dict(row))

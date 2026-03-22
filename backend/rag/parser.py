@@ -16,7 +16,7 @@ Rules:
 - Use ONLY the provided "Source text" block. Do not use outside knowledge, typical legal templates, or assumptions about what "usually" happens in a case.
 - Extract only facts explicitly stated or clearly named in that text. If something is ambiguous or implied but not stated, omit it or use empty values with low confidence.
 - Do NOT: predict outcomes, add legal conclusions, infer jurisdiction/court from party names alone, invent dates/amounts, or add parties not named in the text.
-- Parties: include a person or entity only if their name (or clear identifier) appears in the source. If role (plaintiff/defendant) is not explicit, use role "other" and low confidence.
+- Parties: include a person or entity only if their name (or clear identifier) appears in the source. Each party "role" MUST be exactly one of: plaintiff, defendant, other — never synonyms like "contracting", "party", or "counterparty". If plaintiff/defendant is not explicit in the text, use "other" and low confidence.
 - Events / claims / damages: the "event", "type", and similar fields must be phrased from what the text actually says, not from general legal categories unless the text uses them.
 - source_span MUST be an exact, contiguous copy-paste substring from the Source text (same spelling/punctuation). If you cannot find such a substring, set source_span to "" and set confidence to 0.2 or lower for that item (or omit the item if there is no support at all).
 - summary.text: short neutral restatement of only what appears in the source. If the source is empty or non-informative, use "" with low summary.confidence.
@@ -49,8 +49,17 @@ def _normalize_parsed_dict(data: dict) -> dict:
     if "summary" in data and isinstance(data["summary"], str):
         data["summary"] = {"text": data["summary"], "confidence": 0.0}
     for party in data.get("parties") or []:
-        if isinstance(party, dict) and "confidence" not in party:
+        if not isinstance(party, dict):
+            continue
+        if "confidence" not in party:
             party["confidence"] = 0.0
+        raw_role = party.get("role")
+        if raw_role is not None:
+            r = str(raw_role).strip().lower()
+            if r not in ("plaintiff", "defendant", "other"):
+                party["role"] = "other"
+            else:
+                party["role"] = r
     for ev in data.get("events") or []:
         if isinstance(ev, dict) and "source_span" not in ev:
             ev["source_span"] = ""
