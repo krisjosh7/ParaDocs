@@ -153,6 +153,7 @@ def _nvidia_completion(
     *,
     temperature: float,
     response_format: dict[str, str] | None,
+    max_tokens: int | None = None,
     _max_retries: int = 6,
 ) -> str:
     """Call NVIDIA NIM API (Qwen 3.5 122B) as fallback, with retry on 429.
@@ -164,11 +165,12 @@ def _nvidia_completion(
     if not key:
         raise RuntimeError("NVIDIA_API_KEY is not set — cannot fall back to NVIDIA NIM")
 
+    mt = 4096 if max_tokens is None else max(1, min(int(max_tokens), 4096))
     payload: dict[str, Any] = {
         "model": _NVIDIA_MODEL,
         "messages": messages,
         "temperature": temperature,
-        "max_tokens": 4096,
+        "max_tokens": mt,
         "stream": False,
         "chat_template_kwargs": {"enable_thinking": False},
     }
@@ -216,6 +218,7 @@ def _completion_text(
     *,
     temperature: float,
     response_format: dict[str, str] | None,
+    max_completion_tokens: int | None = None,
 ) -> str:
     client = _client()
     kwargs: dict[str, Any] = {
@@ -225,6 +228,8 @@ def _completion_text(
     }
     if response_format is not None:
         kwargs["response_format"] = response_format
+    if max_completion_tokens is not None:
+        kwargs["max_completion_tokens"] = max(1, int(max_completion_tokens))
 
     try:
         print(f"[LLM] Calling Groq ({kwargs['model']})...")
@@ -233,13 +238,18 @@ def _completion_text(
     except RateLimitError:
         print(f"[LLM] Groq rate limited! Falling back to NVIDIA NIM ({_NVIDIA_MODEL})")
         logger.warning("Groq rate limit on %s, falling back to NVIDIA NIM (%s)", kwargs["model"], _NVIDIA_MODEL)
-        return _nvidia_completion(messages, temperature=temperature, response_format=response_format)
+        return _nvidia_completion(
+            messages,
+            temperature=temperature,
+            response_format=response_format,
+            max_tokens=max_completion_tokens,
+        )
 
     choice = resp.choices[0]
     content = choice.message.content
     if not content:
         raise RuntimeError("Groq returned empty content")
-    return _strip_thinking(content)
+    return _strip_thinking(content.strip())
 
 
 def generate_json(system_instruction: str, user_text: str) -> str:
@@ -251,11 +261,18 @@ def generate_json(system_instruction: str, user_text: str) -> str:
         ],
         temperature=0,
         response_format={"type": "json_object"},
+        max_completion_tokens=None,
     )
 
 
-def generate_text(system_instruction: str, user_text: str, *, temperature: float = 0.3) -> str:
-    """Plain-text completion (research queries / scoring)."""
+def generate_text(
+    system_instruction: str,
+    user_text: str,
+    *,
+    temperature: float = 0.3,
+    max_completion_tokens: int | None = None,
+) -> str:
+    """Plain-text completion (research queries / scoring / short task summaries)."""
     return _completion_text(
         [
             {"role": "system", "content": system_instruction},
@@ -263,6 +280,7 @@ def generate_text(system_instruction: str, user_text: str, *, temperature: float
         ],
         temperature=temperature,
         response_format=None,
+        max_completion_tokens=max_completion_tokens,
     )
 
 
@@ -270,4 +288,6 @@ def chat_messages(messages: list[dict[str, str]], *, temperature: float = 0.3) -
     """Multi-turn chat; first message should be system. Uses Groq with NVIDIA NIM fallback."""
     if not messages:
         raise ValueError("messages must not be empty")
-    return _completion_text(messages, temperature=temperature, response_format=None)
+    return _completion_text(
+        messages, temperature=temperature, response_format=None, max_completion_tokens=None
+    )

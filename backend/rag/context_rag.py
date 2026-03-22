@@ -167,6 +167,12 @@ def background_ingest_context_to_rag(case_id: str, row: dict[str, Any]) -> None:
         doc_id = str((docs[-1] or {}).get("doc_id") or "").strip()
         if ctx_id and doc_id:
             set_rag_doc_id_for_context(case_id, ctx_id, doc_id)
+        try:
+            from workflow.reasoning_agent import enqueue_reasoning_job
+
+            enqueue_reasoning_job(case_id, "post_ingest", priority=1, force=False)
+        except Exception:
+            logger.exception("Failed to enqueue reasoning job after ingest for case_id=%s", case_id)
     except Exception as exc:
         logger.exception("Background RAG ingest failed for context %s", row.get("id"))
         if ctx_id:

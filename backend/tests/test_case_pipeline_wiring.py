@@ -7,6 +7,29 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+_FAKE_AGENTIC_JSON = json.dumps(
+    {
+        "hypotheses": [
+            {
+                "id": "h1",
+                "theory": "Test theory",
+                "confidence": 0.7,
+                "timeline_label": "primary",
+                "supporting_event_refs": [],
+            },
+        ],
+        "tasks": [
+            {
+                "id": "t1",
+                "task": "Verify dates",
+                "reason": "weak evidence",
+                "source": "weak_evidence",
+            },
+        ],
+        "research_queries": ["statute of limitations employment"],
+    },
+)
+
 from schemas import Document, Event, IngestRequest, StructuredDocument, SummaryBlock
 
 
@@ -14,6 +37,7 @@ def _stub_sentence_transformers() -> None:
     """Avoid loading torch/transformers when importing rag.router (CI / broken ML env)."""
     mod = types.ModuleType("sentence_transformers")
     mod.SentenceTransformer = MagicMock()
+    mod.util = MagicMock()
     sys.modules["sentence_transformers"] = mod
 
 
@@ -150,6 +174,9 @@ async def test_run_case_workflow_smoke_with_mocks(tmp_path, monkeypatch) -> None
     assert final["research_stop_reason"] == "no_new_results"
     assert final["research_iteration"] == 1
     assert final.get("reasoning_backfill_changes", 0) >= 0
+    assert len(final.get("hypotheses") or []) == 0
+    assert len(final.get("tasks") or []) == 0
+    assert len(final.get("research_queries") or []) == 0
 
 
 def _single_event_structured(doc_id: str, case_id: str) -> StructuredDocument:
@@ -209,6 +236,7 @@ async def test_run_case_workflow_skips_research_when_context_too_thin(tmp_path, 
     assert final["research_results"] == []
     assert final["research_stop_reason"] == "skipped_insufficient_context"
     assert "reasoning_backfill_changes" in final
+    assert len(final.get("hypotheses") or []) == 0
 
 
 @pytest.mark.asyncio
@@ -278,3 +306,61 @@ async def test_run_case_workflow_research_runs_only_once(tmp_path, monkeypatch) 
     mock_rs.ainvoke.assert_called_once()
     assert second["research_stop_reason"] == "skipped_already_completed"
     assert second["research_results"] == []
+
+
+def test_chat_task_path_persists_and_returns_reasoning(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("CASES_ROOT", str(tmp_path))
+    _stub_sentence_transformers()
+    from fastapi.testclient import TestClient
+    from main import app
+    from timeline_logic import empty_timeline_payload, write_timelines_json
+
+    cid = "case-chat-task"
+    case_dir = tmp_path / cid
+    case_dir.mkdir(parents=True)
+    (case_dir / "events.json").write_text("[]", encoding="utf-8")
+    write_timelines_json(cid, empty_timeline_payload(cid))
+
+    def fake_gen(system: str, user: str) -> str:
+        if "legal case reasoning engine" in system.lower():
+            return _FAKE_AGENTIC_JSON
+        return json.dumps(
+            {
+                "is_agent_task": True,
+                "task": {
+                    "task": "Investigate contract signing date",
+                    "type": "investigation",
+                    "priority": "medium",
+                    "status": "pending",
+                },
+            }
+        )
+
+    def _sync_enqueue(cid: str, reason: str, **kw):
+        from workflow.reasoning_agent import try_run_agentic
+
+        try_run_agentic(cid, reason=reason, force=kw.get("force", False))
+
+    with (
+        patch("workflow.nodes.agentic_reasoning.generate_json", side_effect=fake_gen),
+        patch("routes_chat.query_case", return_value=[]),
+        patch("routes_chat.chat_messages", return_value="Acknowledged."),
+        patch("routes_chat.enqueue_reasoning_job", side_effect=_sync_enqueue),
+    ):
+        client = TestClient(app)
+        r = client.post(
+            "/chat",
+            json={
+                "message": "Figure out when the contract was signed",
+                "case_id": cid,
+                "chat_history": [],
+            },
+        )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["task_detected"] is True
+    assert body.get("reasoning_refresh_queued") is True
+    assert body["reasoning"] is not None
+    tasks = body["reasoning"]["tasks"]
+    assert any(t.get("source") == "user" for t in tasks)
+    assert (tmp_path / cid / "agentic_state.json").is_file()

@@ -1,5 +1,5 @@
 """
-LangGraph case pipeline: ingest → events → timeline → [research?] → reasoning.
+LangGraph case pipeline: ingest → events → timeline → [research?] → reasoning (backfill).
 
 Topology:
     START
@@ -8,8 +8,15 @@ Topology:
       -> normalize_events (merge + dedupe + persist to events.json)
       -> rebuild_timeline (Phase 2: timelines.json; always)
       -> run_research     (Phase 3: async research subgraph, once per case if context is sufficient)
-      -> run_reasoning    (Phase 4: event date backfill + timeline refresh if needed)
+      -> skip_research    (Phase 3 skipped: bridge when research does not run)
+      -> run_reasoning    (date backfill + optional timeline refresh)
       -> END
+
+Agentic LLM reasoning (hypotheses / tasks / research queries) runs **out of band** via
+``workflow.reasoning_agent`` (background queue + budgets), not as a graph node.
+
+After ``rebuild_timeline``, either ``run_research`` or ``skip_research`` runs; both lead to
+``run_reasoning``, then the pipeline ends.
 """
 
 from langgraph.graph import StateGraph, START, END

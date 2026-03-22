@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from typing import Any, Literal
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -9,6 +10,9 @@ from pydantic import BaseModel, Field
 from context_catalog import validate_case_id
 from groq_llm import chat_messages
 from rag.vector_store import query_case
+from workflow.agentic_state_store import read_agentic_state, write_agentic_state
+from workflow.nodes.agentic_reasoning import classify_user_message_as_task
+from workflow.reasoning_agent import enqueue_reasoning_job
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +44,9 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     sources: list[str]
+    task_detected: bool = False
+    reasoning: dict[str, Any] | None = None
+    reasoning_refresh_queued: bool = False
 
 
 def _build_context_block(hits: list[dict]) -> tuple[str, list[str]]:
@@ -79,6 +86,7 @@ def chat_endpoint(body: ChatRequest) -> ChatResponse:
 
     hits: list[dict] = []
     sources: list[str] = []
+    cid: str | None = None
     if body.case_id and body.case_id.strip():
         try:
             cid = validate_case_id(body.case_id.strip())
@@ -98,10 +106,83 @@ def chat_endpoint(body: ChatRequest) -> ChatResponse:
         if context_text
         else "CONTEXT:\n(No case documents were retrieved. The user did not select a case or the case has no indexed content.)\n"
     )
+
+    if cid is not None:
+        try:
+            is_task, task_meta = classify_user_message_as_task(msg)
+        except Exception:
+            logger.exception("chat task classification failed; falling back to normal chat")
+            is_task, task_meta = False, None
+        if is_task and task_meta:
+            try:
+                blob = read_agentic_state(cid)
+                typ = str(task_meta.get("type") or "investigation").strip()
+                if typ not in ("execution", "research", "investigation"):
+                    typ = "investigation"
+                priority = str(task_meta.get("priority") or "medium").strip() or "medium"
+                status = str(task_meta.get("status") or "pending").strip() or "pending"
+                user_task: dict[str, Any] = {
+                    "id": str(uuid4()),
+                    "task": str(task_meta.get("task") or msg).strip() or msg,
+                    "type": typ,
+                    "priority": priority,
+                    "status": status,
+                    "source": "user",
+                    "reason": "User-assigned task via chat",
+                }
+                blob["tasks"].append(user_task)
+                write_agentic_state(cid, blob)
+                # Token control: full agentic LLM runs in background (high priority + force).
+                enqueue_reasoning_job(cid, "chat_task", priority=2, force=True)
+                final = read_agentic_state(cid)
+                reasoning = {
+                    "hypotheses": final.get("hypotheses") or [],
+                    "tasks": final.get("tasks") or [],
+                    "research_queries": final.get("research_queries") or [],
+                }
+            except Exception:
+                logger.exception("chat agentic reasoning path failed; falling back to normal chat")
+                is_task = False
+
+            if is_task and task_meta:
+                ack_prefix = (
+                    "You are a legal assistant. The user assigned a new task to the case agent; "
+                    "the task was saved and a background reasoning refresh was queued (hypotheses / tasks / "
+                    "research suggestions may update within a short time). "
+                    "Reply in one or two short sentences: confirm the task was recorded and that reasoning "
+                    "will update shortly. Do not paste large JSON.\n\n"
+                    f"Current snapshot: {len(reasoning['hypotheses'])} hypotheses, {len(reasoning['tasks'])} tasks, "
+                    f"{len(reasoning['research_queries'])} research queries.\n\n"
+                )
+                system_content = ack_prefix + context_section
+                history = body.chat_history[-MAX_HISTORY_MESSAGES:]
+                groq_messages: list[dict[str, str]] = [{"role": "system", "content": system_content}]
+                for m in history:
+                    c = (m.content or "").strip()
+                    if not c:
+                        continue
+                    groq_messages.append({"role": m.role, "content": c})
+                groq_messages.append({"role": "user", "content": msg})
+                try:
+                    reply = chat_messages(groq_messages, temperature=0.3)
+                except RuntimeError as e:
+                    logger.warning("chat LLM error: %s", e)
+                    raise HTTPException(status_code=503, detail=str(e)) from e
+                except Exception as e:
+                    logger.exception("chat LLM failed")
+                    raise HTTPException(status_code=502, detail="Language model request failed") from e
+                return ChatResponse(
+                    response=reply,
+                    sources=sources,
+                    task_detected=True,
+                    reasoning=reasoning,
+                    reasoning_refresh_queued=True,
+                )
+
     system_content = CHAT_SYSTEM_PREFIX + context_section
 
     history = body.chat_history[-MAX_HISTORY_MESSAGES:]
-    groq_messages: list[dict[str, str]] = [{"role": "system", "content": system_content}]
+    groq_messages = [{"role": "system", "content": system_content}]
     for m in history:
         c = (m.content or "").strip()
         if not c:
@@ -118,4 +199,10 @@ def chat_endpoint(body: ChatRequest) -> ChatResponse:
         logger.exception("chat LLM failed")
         raise HTTPException(status_code=502, detail="Language model request failed") from e
 
-    return ChatResponse(response=reply, sources=sources)
+    return ChatResponse(
+        response=reply,
+        sources=sources,
+        task_detected=False,
+        reasoning=None,
+        reasoning_refresh_queued=False,
+    )

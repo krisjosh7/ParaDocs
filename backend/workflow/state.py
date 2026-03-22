@@ -25,6 +25,8 @@ class CaseState(TypedDict):
     reasoning_timeline_refreshed: bool
     hypotheses: list
     tasks: list
+    # Agentic reasoning: suggested web/search queries (not executed here)
+    research_queries: list
 
 
 def initial_case_state(
@@ -48,4 +50,5 @@ def initial_case_state(
         "reasoning_timeline_refreshed": False,
         "hypotheses": [],
         "tasks": [],
+        "research_queries": [],
     }

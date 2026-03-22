@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from main import app, cleanup_session_media, on_shutdown
+from main import app, cleanup_session_media
 
 
 def test_health() -> None:
@@ -15,11 +15,9 @@ def test_health() -> None:
 
 
 @patch("main.shutil.rmtree")
-def test_cleanup_session_media_and_shutdown_hook(mock_rmtree) -> None:
+def test_cleanup_session_media(mock_rmtree) -> None:
     cleanup_session_media()
     mock_rmtree.assert_called()
-    on_shutdown()
-    assert mock_rmtree.call_count >= 2
 
 
 def test_echo() -> None:
