@@ -1,13 +1,13 @@
 """
 Tests for research/prompts.py
 
-Unit tests:        no Ollama needed — test prompt structure and output parsers
-Integration tests: real Ollama call — verify the model is running and producing
-                   coherent, parseable, contextually relevant output
+Unit tests:        no Gemini needed — test prompt structure and output parsers
+Integration tests: real Gemini API — requires GEMINI_API_KEY in the environment
 """
 
+import os
+
 import pytest
-import httpx
 
 from research.prompts import (
     generate_queries_prompt,
@@ -16,7 +16,6 @@ from research.prompts import (
     parse_score,
     run_generate_queries,
     run_score_result,
-    MODEL,
 )
 
 
@@ -210,81 +209,49 @@ def test_parse_score_no_reason_line():
 
 
 # ---------------------------------------------------------------------------
-# Integration: Ollama connection
+# Integration: Gemini API (requires GEMINI_API_KEY)
 # ---------------------------------------------------------------------------
 
-def _ollama_running() -> bool:
-    try:
-        r = httpx.get("http://localhost:11434/api/tags", timeout=3.0)
-        return r.status_code == 200
-    except Exception:
-        return False
+def _gemini_configured() -> bool:
+    return bool(os.environ.get("GEMINI_API_KEY", "").strip())
 
 
-def _model_available() -> bool:
-    try:
-        r = httpx.get("http://localhost:11434/api/tags", timeout=3.0)
-        models = [m["name"] for m in r.json().get("models", [])]
-        return any(MODEL.split(":")[0] in m for m in models)
-    except Exception:
-        return False
-
-
-ollama_required = pytest.mark.skipif(
-    not _ollama_running(),
-    reason="Ollama is not running — start with: ollama serve",
-)
-
-model_required = pytest.mark.skipif(
-    not _model_available(),
-    reason=f"Model {MODEL} not available — run: ollama pull {MODEL}",
+gemini_required = pytest.mark.skipif(
+    not _gemini_configured(),
+    reason="GEMINI_API_KEY not set — add to backend/.env",
 )
 
 
-@ollama_required
-def test_ollama_is_reachable():
-    r = httpx.get("http://localhost:11434/api/tags", timeout=3.0)
-    assert r.status_code == 200
-
-
-@ollama_required
-@model_required
-def test_ollama_model_is_listed():
-    r = httpx.get("http://localhost:11434/api/tags", timeout=3.0)
-    models = [m["name"] for m in r.json().get("models", [])]
-    assert any(MODEL.split(":")[0] in m for m in models), \
-        f"{MODEL} not found in {models}"
+@gemini_required
+def test_gemini_api_key_is_configured_for_integration_tests():
+    assert _gemini_configured()
 
 
 # ---------------------------------------------------------------------------
 # Integration: run_generate_queries quality
 # ---------------------------------------------------------------------------
 
-@ollama_required
-@model_required
+@gemini_required
 def test_run_generate_queries_returns_list():
     result = run_generate_queries(SAMPLE_CASE_FACTS, [], n=3)
     assert isinstance(result, list)
     assert len(result) > 0
 
 
-@ollama_required
-@model_required
+@gemini_required
 def test_run_generate_queries_returns_correct_count():
     result = run_generate_queries(SAMPLE_CASE_FACTS, [], n=3)
     # Allow ±1 — models sometimes produce 2 or 4 despite being asked for 3
     assert 2 <= len(result) <= 4
 
 
-@ollama_required
-@model_required
+@gemini_required
 def test_run_generate_queries_no_empty_strings():
     result = run_generate_queries(SAMPLE_CASE_FACTS, [], n=3)
     assert all(q.strip() != "" for q in result)
 
 
-@ollama_required
-@model_required
+@gemini_required
 def test_run_generate_queries_look_like_search_terms():
     """Queries should be concise phrases, not full sentences or paragraphs."""
     result = run_generate_queries(SAMPLE_CASE_FACTS, [], n=3)
@@ -293,8 +260,7 @@ def test_run_generate_queries_look_like_search_terms():
         assert word_count <= 15, f"Query too long to be a search term: {q!r}"
 
 
-@ollama_required
-@model_required
+@gemini_required
 def test_run_generate_queries_avoids_prior_queries():
     """Queries should not repeat what's already been run."""
     result = run_generate_queries(SAMPLE_CASE_FACTS, PRIOR_QUERIES, n=3)
@@ -308,31 +274,27 @@ def test_run_generate_queries_avoids_prior_queries():
 # Integration: run_score_result quality
 # ---------------------------------------------------------------------------
 
-@ollama_required
-@model_required
+@gemini_required
 def test_run_score_result_returns_float_and_string():
     score, reason = run_score_result(SAMPLE_CASE_FACTS, SAMPLE_RESULT_RELEVANT)
     assert isinstance(score, float)
     assert isinstance(reason, str)
 
 
-@ollama_required
-@model_required
+@gemini_required
 def test_run_score_result_score_in_valid_range():
     score, _ = run_score_result(SAMPLE_CASE_FACTS, SAMPLE_RESULT_RELEVANT)
     assert 0.0 <= score <= 1.0
 
 
-@ollama_required
-@model_required
+@gemini_required
 def test_run_score_result_reason_nonempty():
     _, reason = run_score_result(SAMPLE_CASE_FACTS, SAMPLE_RESULT_RELEVANT)
     assert len(reason.strip()) > 0
 
 
 @pytest.mark.integration
-@ollama_required
-@model_required
+@gemini_required
 def test_run_score_result_relevant_scores_higher_than_irrelevant():
     """
     The core competence test. A result directly about traffic negligence

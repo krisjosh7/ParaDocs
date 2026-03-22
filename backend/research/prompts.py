@@ -2,19 +2,16 @@
 LLM prompt templates and output parsers for the two nodes that require
 a language model call: generate_queries and score_result.
 
-All prompts target llama3.1:8b running locally via Ollama.
+Calls use the Google Gemini API (see GEMINI_API_KEY and GEMINI_MODEL in backend/.env).
 
 Design principles:
-  - Numbered list output for queries (reliable across all local models)
+  - Numbered list output for queries (reliable across models)
   - Score-then-reason format for scoring (trivially parseable, no JSON)
-  - Concise system messages (local models have good instruction following
-    but benefit from clear, tight role definitions)
+  - Concise system messages
   - case_facts is always the grounding context — never omitted
 """
 
-import ollama
-
-MODEL = "llama3.1:8b"
+from gemini_llm import generate_text
 
 
 # ---------------------------------------------------------------------------
@@ -95,12 +92,11 @@ def run_generate_queries(
     n: int = 3,
 ) -> list[str]:
     """
-    Call Ollama and return a parsed list of search queries.
+    Call Gemini and return a parsed list of search queries.
     This is the function the router calls directly.
     """
     messages = generate_queries_prompt(case_facts, queries_run, n)
-    response = ollama.chat(model=MODEL, messages=messages)
-    raw = response["message"]["content"]
+    raw = generate_text(messages[0]["content"], messages[1]["content"], temperature=0.3)
     return parse_queries(raw)
 
 
@@ -178,10 +174,9 @@ def parse_score(response_text: str) -> tuple[float, str]:
 
 def run_score_result(case_facts: str, result: dict) -> tuple[float, str]:
     """
-    Call Ollama and return (score, reason) for a single result.
+    Call Gemini and return (score, reason) for a single result.
     This is the function the router calls directly.
     """
     messages = score_result_prompt(case_facts, result)
-    response = ollama.chat(model=MODEL, messages=messages)
-    raw = response["message"]["content"]
+    raw = generate_text(messages[0]["content"], messages[1]["content"], temperature=0.0)
     return parse_score(raw)

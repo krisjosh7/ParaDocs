@@ -11,9 +11,10 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
-# .env is two levels up: backend/research/tests/ -> backend/ -> ParaDocs/
-_ENV_PATH = Path(__file__).resolve().parents[3] / ".env"
-load_dotenv(_ENV_PATH)
+# backend/ and repo root (prefer backend/.env for GEMINI_API_KEY, etc.)
+_backend = Path(__file__).resolve().parents[2]
+load_dotenv(_backend / ".env")
+load_dotenv(_backend.parent / ".env")
 
 # Confirmed valid citation from the CourtListener citation-lookup API docs.
 KNOWN_CITATION_TEXT = "Obergefell v. Hodges (576 U.S. 644) established the right to marriage"

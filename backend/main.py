@@ -7,6 +7,12 @@ from pathlib import Path
 from typing import Any, Union
 from uuid import uuid4
 
+from dotenv import load_dotenv
+
+_backend_dir = Path(__file__).resolve().parent
+load_dotenv(_backend_dir / ".env")
+load_dotenv(_backend_dir.parent / ".env")
+
 from fastapi import Body, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
