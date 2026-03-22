@@ -101,14 +101,8 @@ async def load_context(req: LoadContextRequest):
     Entry point for the research subgraph.
     Queries the RAG database to build case_facts from existing documents,
     giving the LLM grounding context for query generation and scoring.
-
-    case_facts is assembled from:
-      - The case summary (structured_hits type="summary")
-      - Top relevant chunks
-      - Parties and claims if available
-
-    seen_result_ids starts empty — dedup accumulates within this run.
     """
+    print(f"[load_context] Querying RAG at {RAG_BASE}/query for case_id={req.case_id}")
     async with httpx.AsyncClient(timeout=15.0) as client:
         try:
             resp = await client.post(
@@ -122,27 +116,29 @@ async def load_context(req: LoadContextRequest):
             resp.raise_for_status()
             rag_data = resp.json()
         except httpx.HTTPError as e:
+            print(f"[load_context] RAG query FAILED: {e}")
             raise HTTPException(status_code=502, detail=f"RAG query failed: {e}")
 
-    # Build case_facts from the RAG response
+    print(f"[load_context] RAG returned {len(rag_data.get('chunks', []))} chunks, {len(rag_data.get('structured_hits', []))} structured hits")
+
     parts: list[str] = []
 
-    # Prefer the summary structured hit if available
     for hit in rag_data.get("structured_hits", []):
         if hit.get("type") == "summary" and hit.get("value"):
             parts.append(f"Summary: {hit['value']}")
+            print(f"[load_context] Found summary structured hit")
             break
 
-    # Append raw chunks as additional context
     for chunk in rag_data.get("chunks", []):
         if chunk.get("text"):
             parts.append(chunk["text"])
 
     case_facts = "\n\n".join(parts) if parts else "No existing case context found."
+    print(f"[load_context] Built case_facts from {len(parts)} parts ({len(case_facts)} chars)")
 
     return LoadContextResponse(
         case_facts=case_facts,
-        seen_result_ids=[],  # dedup accumulates within this research run
+        seen_result_ids=[],
     )
 
 
@@ -153,9 +149,10 @@ async def load_context(req: LoadContextRequest):
 @router.post("/generate-queries", response_model=GenerateQueriesResponse)
 async def generate_queries(req: GenerateQueriesRequest):
     """
-    Calls the local Ollama LLM to produce N novel legal search queries
+    Calls the LLM to produce N novel legal search queries
     grounded in case_facts, avoiding queries already run.
     """
+    print(f"[generate_queries] Calling LLM for {req.n} queries (prior: {len(req.queries_run)})")
     queries = run_generate_queries(
         case_facts=req.case_facts,
         queries_run=req.queries_run,
@@ -163,11 +160,13 @@ async def generate_queries(req: GenerateQueriesRequest):
     )
 
     if not queries:
+        print("[generate_queries] LLM returned NO queries!")
         raise HTTPException(
             status_code=500,
             detail="LLM returned no queries — check Ollama is running and model is available",
         )
 
+    print(f"[generate_queries] LLM returned {len(queries)} queries")
     return GenerateQueriesResponse(queries_to_run=queries)
 
 
@@ -179,43 +178,46 @@ async def generate_queries(req: GenerateQueriesRequest):
 async def search(req: SearchRequest):
     """
     Executes CourtListener searches in parallel.
-
-    Iteration 1:  fan-out text search across all queries_to_run
-    Iteration 2+: citation chasing — forward + backward on each top_result_id,
-                  plus any new text queries if generate-queries produced them
-
-    Results are flattened and deduplicated against seen_result_ids.
     """
     seen = set(req.seen_result_ids)
     tasks = []
 
     if req.iteration == 1 or req.queries_to_run:
-        # Text search — one task per query
         for query in req.queries_to_run:
-            tasks.append(search_opinions(query, page_size=5))
+            print(f"[search] Queueing text search: '{query}'")
+            tasks.append(search_opinions(query, page_size=3))
 
     if req.iteration >= 2 and req.top_result_ids:
-        # Citation chasing — forward and backward on each top result
         for opinion_id in req.top_result_ids:
+            print(f"[search] Queueing citation chase (fwd+bwd) for opinion {opinion_id}")
             tasks.append(get_forward_citations(opinion_id))
             tasks.append(get_backward_citations(opinion_id))
 
     if not tasks:
+        print("[search] No tasks to run, returning empty")
         return SearchResponse(raw_results=[])
 
-    # Fire all tasks in parallel
+    print(f"[search] Firing {len(tasks)} tasks in parallel...")
     batches = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Flatten, skip errors, deduplicate
     raw_results: list[dict] = []
+    errors = 0
     for batch in batches:
         if isinstance(batch, Exception):
-            continue  # log in production; don't crash the whole search
+            errors += 1
+            print(f"[search] Task error: {batch}")
+            continue
         for result in batch:
             if result.get("id") and result["id"] not in seen:
                 seen.add(result["id"])
                 raw_results.append(result)
 
+    MAX_RAW_RESULTS = 30
+    if len(raw_results) > MAX_RAW_RESULTS:
+        print(f"[search] Capping results from {len(raw_results)} to {MAX_RAW_RESULTS}")
+        raw_results = raw_results[:MAX_RAW_RESULTS]
+
+    print(f"[search] Done: {len(raw_results)} new results, {errors} task errors, {len(seen)} total seen")
     return SearchResponse(raw_results=raw_results)
 
 
@@ -223,43 +225,59 @@ async def search(req: SearchRequest):
 # POST /research/score
 # ---------------------------------------------------------------------------
 
+SCORE_CONCURRENCY = 2  # max parallel LLM scoring calls
+
+
 @router.post("/score", response_model=ScoreResponse)
 async def score(req: ScoreRequest):
     """
-    Scores each raw result for relevance against case_facts using the
-    local LLM. Filters to results at or above RELEVANCE_THRESHOLD.
-    Also deduplicates against seen_result_ids before scoring to avoid
-    wasting LLM calls on already-stored results.
+    Scores each raw result for relevance against case_facts using the LLM.
+    Runs up to SCORE_CONCURRENCY scoring calls in parallel.
     """
     seen = set(req.seen_result_ids)
 
-    # Deduplicate before scoring — no point scoring what's already stored
     to_score = [r for r in req.raw_results if r.get("id") not in seen]
+    print(f"[score] {len(req.raw_results)} raw results, {len(to_score)} after dedup, threshold={RELEVANCE_THRESHOLD}")
+    print(f"[score] Scoring in parallel (concurrency={SCORE_CONCURRENCY})")
 
-    scored_results: list[dict] = []
-    for result in to_score:
-        score_val, reason = run_score_result(req.case_facts, result)
-        if score_val >= RELEVANCE_THRESHOLD:
-            scored_results.append({
-                **result,
-                "relevance_score": score_val,
-                "relevance_reason": reason,
-            })
+    semaphore = asyncio.Semaphore(SCORE_CONCURRENCY)
 
-    # Sort descending by score so top results are easy to extract
+    async def score_one(idx: int, result: dict) -> dict | None:
+        case_name = result.get("case_name", "?")
+        async with semaphore:
+            try:
+                print(f"[score] Scoring {idx}/{len(to_score)}: {case_name}...")
+                score_val, reason = await asyncio.to_thread(
+                    run_score_result, req.case_facts, result
+                )
+                label = "PASS" if score_val >= RELEVANCE_THRESHOLD else "FAIL"
+                print(f"[score]   → {score_val:.2f} {label} — {reason}")
+                if score_val >= RELEVANCE_THRESHOLD:
+                    return {
+                        **result,
+                        "relevance_score": score_val,
+                        "relevance_reason": reason,
+                    }
+                return None
+            except Exception as e:
+                print(f"[score]   → SKIPPED (LLM error): {type(e).__name__}: {e}")
+                return None
+
+    tasks = [score_one(i, r) for i, r in enumerate(to_score, 1)]
+    results = await asyncio.gather(*tasks)
+
+    scored_results = [r for r in results if r is not None]
     scored_results.sort(key=lambda r: r["relevance_score"], reverse=True)
 
-    # Top result opinion_ids become seeds for citation chasing next iteration
     top_result_ids = [
         r["opinion_id"]
         for r in scored_results[:3]
         if r.get("opinion_id")
     ]
 
-    # Update seen_result_ids with everything we scored (pass or fail)
-    # so we never re-score the same document
     updated_seen = list(seen | {r["id"] for r in to_score if r.get("id")})
 
+    print(f"[score] {len(scored_results)} passed threshold, top_ids={top_result_ids}")
     return ScoreResponse(
         scored_results=scored_results,
         top_result_ids=top_result_ids,
@@ -275,16 +293,13 @@ async def score(req: ScoreRequest):
 async def store(req: StoreRequest):
     """
     Passes each scored result to the RAG /store endpoint.
-    Owns no storage logic — purely a translation layer between the
-    research pipeline's normalized result shape and the RAG store schema.
     """
     stored: list[dict] = []
     seen = set(req.seen_result_ids)
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        for result in req.scored_results:
-            # Format the CourtListener result as readable text for the RAG store.
-            # The RAG /parse endpoint will chunk and embed this.
+    print(f"[store] Storing {len(req.scored_results)} results to RAG at {RAG_BASE}/store")
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        for i, result in enumerate(req.scored_results, 1):
             header = result.get("case_name", "Unknown Case")
             if result.get("citation"):
                 header += f" ({result['citation']})"
@@ -300,22 +315,35 @@ async def store(req: StoreRequest):
                 f"{result.get('snippet', '')}"
             )
 
+            source_url = result.get("url", "")
+
             payload = {
                 "case_id": req.case_id,
                 "raw_text": raw_text,
                 "source": "web",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_url": source_url,
             }
 
             try:
+                print(f"[store] {i}/{len(req.scored_results)}: Storing '{result.get('case_name', '?')}'...")
                 resp = await client.post(f"{RAG_BASE}/store", json=payload)
                 resp.raise_for_status()
-                stored.append({**result, "rag_doc_id": resp.json().get("doc_id")})
+                doc_id = resp.json().get("doc_id")
+                stored.append({**result, "rag_doc_id": doc_id})
                 seen.add(result["id"])
-            except httpx.HTTPError:
-                # A single failed store shouldn't abort the batch
+                print(f"[store]   → stored as rag_doc_id={doc_id}")
+            except httpx.HTTPError as e:
+                detail = ""
+                if hasattr(e, "response") and e.response is not None:
+                    detail = f" status={e.response.status_code} body={e.response.text[:200]}"
+                print(f"[store]   → FAILED: {type(e).__name__}: {e}{detail}")
+                continue
+            except Exception as e:
+                print(f"[store]   → FAILED (unexpected): {type(e).__name__}: {e}")
                 continue
 
+    print(f"[store] Done: {len(stored)}/{len(req.scored_results)} stored successfully")
     return StoreResponse(
         all_stored_results=stored,
         seen_result_ids=list(seen),
@@ -331,17 +359,17 @@ async def decide(req: DecideRequest):
     """
     Pure logic — no LLM, no external calls.
     Determines whether the research loop should continue or stop.
-
-    Stop conditions (checked in priority order):
-      1. Hard iteration cap reached (MAX_ITERATIONS)
-      2. No new scored results this iteration (diminishing returns)
     """
+    print(f"[decide] iteration={req.iteration}, MAX={MAX_ITERATIONS}, scored_results={len(req.scored_results)}")
     if req.iteration >= MAX_ITERATIONS:
+        print(f"[decide] → STOP (max iterations reached)")
         return DecideResponse(decision="stop", stop_reason="max_iter")
 
     if not req.scored_results:
+        print(f"[decide] → STOP (no new results this iteration)")
         return DecideResponse(decision="stop", stop_reason="no_new_results")
 
+    print(f"[decide] → CONTINUE")
     return DecideResponse(decision="continue", stop_reason=None)
 
 
@@ -353,19 +381,23 @@ async def decide(req: DecideRequest):
 async def run_research(req: RunResearchRequest):
     """
     Kicks off the full research pipeline for a given case.
-    Initialises ResearchState and invokes the LangGraph subgraph, which
-    loops through load-context → generate-queries → search → score → store
-    → decide until a termination condition is met.
-
-    The lazy import of research_subgraph avoids a circular import
-    (graph.py imports from this module).
     """
     from research.graph import research_subgraph
     from research.state import initial_research_graph_state
 
-    initial = initial_research_graph_state(req.case_id)
+    print(f"\n{'#'*60}")
+    print(f"[RESEARCH PIPELINE] Starting for case_id={req.case_id}")
+    print(f"{'#'*60}")
 
+    initial = initial_research_graph_state(req.case_id)
     final = await research_subgraph.ainvoke(initial)
+
+    print(f"\n{'#'*60}")
+    print(f"[RESEARCH PIPELINE] COMPLETE")
+    print(f"  Stop reason: {final['stop_reason']}")
+    print(f"  Iterations:  {final['iteration']}")
+    print(f"  Total stored: {len(final['all_stored_results'])} results")
+    print(f"{'#'*60}\n")
 
     return RunResearchResponse(
         case_id=req.case_id,

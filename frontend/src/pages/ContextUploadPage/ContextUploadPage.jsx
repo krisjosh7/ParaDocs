@@ -630,11 +630,13 @@ export default function ContextUploadPage({ onBack, caseId }) {
   const libraryEntries = useMemo(() => {
     // Catalog items linked to a RAG doc via rag_doc_id — filter those out
     // of discoveredDocs so the same upload doesn't show up twice.
+    // Also exclude discovered docs whose source is "upload" — those are
+    // RAG artifacts created by context library uploads, not independent documents.
     const linkedRagIds = new Set(
       contextItems.map((item) => item.ragDocId).filter(Boolean),
     )
     const web = discoveredDocs
-      .filter((row) => !linkedRagIds.has(row.doc_id))
+      .filter((row) => !linkedRagIds.has(row.doc_id) && row.metadata?.source !== 'upload')
       .map((row) => ({ kind: 'web', row }))
     const catalog = contextItems.map((item) => ({ kind: 'catalog', item }))
     return [...web, ...catalog]

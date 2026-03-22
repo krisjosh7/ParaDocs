@@ -134,9 +134,13 @@ def _nvidia_completion(
     *,
     temperature: float,
     response_format: dict[str, str] | None,
-    _max_retries: int = 3,
+    _max_retries: int = 6,
 ) -> str:
-    """Call NVIDIA NIM API (Qwen 3.5 122B) as fallback, with retry on 429."""
+    """Call NVIDIA NIM API (Qwen 3.5 122B) as fallback, with retry on 429.
+
+    Backoff schedule: 2s, 5s, 10s, 20s, 40s, 60s (capped at 60s).
+    Total max wait across all retries is ~137s before giving up.
+    """
     key = _nvidia_api_key()
     if not key:
         raise RuntimeError("NVIDIA_API_KEY is not set — cannot fall back to NVIDIA NIM")
@@ -159,12 +163,14 @@ def _nvidia_completion(
     }
 
     for attempt in range(_max_retries):
+        print(f"[NIM] Attempt {attempt + 1}/{_max_retries}...")
         resp = http_requests.post(
-            _NVIDIA_BASE, json=payload, headers=headers, timeout=60,
+            _NVIDIA_BASE, json=payload, headers=headers, timeout=90,
         )
         if resp.status_code == 429:
-            wait = 2 ** attempt  # 1s, 2s, 4s
+            wait = min(2 * (2 ** attempt), 60)  # 2s, 4s, 8s, 16s, 32s, 60s
             logger.warning("NVIDIA NIM 429 (attempt %d/%d), retrying in %ds", attempt + 1, _max_retries, wait)
+            print(f"[NIM] Rate limited (429). Waiting {wait}s before retry...")
             time.sleep(wait)
             continue
         resp.raise_for_status()
@@ -172,6 +178,7 @@ def _nvidia_completion(
         content = data["choices"][0]["message"]["content"]
         if not content:
             raise RuntimeError("NVIDIA NIM returned empty content")
+        print(f"[NIM] Success on attempt {attempt + 1}")
         return _strip_thinking(content.strip())
 
     raise RuntimeError(f"NVIDIA NIM rate-limited after {_max_retries} retries")
@@ -193,8 +200,11 @@ def _completion_text(
         kwargs["response_format"] = response_format
 
     try:
+        print(f"[LLM] Calling Groq ({kwargs['model']})...")
         resp = client.chat.completions.create(**kwargs)
+        print(f"[LLM] Groq responded successfully")
     except RateLimitError:
+        print(f"[LLM] Groq rate limited! Falling back to NVIDIA NIM ({_NVIDIA_MODEL})")
         logger.warning("Groq rate limit on %s, falling back to NVIDIA NIM (%s)", kwargs["model"], _NVIDIA_MODEL)
         return _nvidia_completion(messages, temperature=temperature, response_format=response_format)
 
