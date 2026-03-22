@@ -60,7 +60,7 @@ function TimelineDot({ weak }) {
         stroke={weak ? 'rgba(184, 148, 62, 0.35)' : 'rgba(184, 148, 62, 0.55)'}
         strokeWidth="2"
       />
-      <circle cx="10" cy="10" r="4" fill={weak ? 'rgba(246, 243, 234, 0.5)' : '#f6f3ea'} />
+      <circle cx="10" cy="10" r="4" fill={weak ? 'rgba(246, 243, 234, 0.5)' : '#F6F3EA'} />
     </svg>
   )
 }
@@ -397,7 +397,7 @@ function TimelineBranchBlock({
 }
 
 const timelineContentStyle = {
-  background: '#f6f3ea',
+  background: '#F6F3EA',
   color: '#1c2744',
   border: '1px solid #d4c09a',
   borderTop: '3px solid #b8943e',
@@ -407,7 +407,7 @@ const timelineContentStyle = {
 }
 
 const timelineArrowStyle = {
-  borderRight: '7px solid #f6f3ea',
+  borderRight: '7px solid #F6F3EA',
 }
 
 /* Bubble visuals live on .pd-timeline-node-bubble (inner); outer icon is a transparent stack */

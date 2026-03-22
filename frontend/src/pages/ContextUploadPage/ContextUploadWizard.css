@@ -34,7 +34,7 @@
   margin: 0;
   padding: 24px 26px 20px;
   border-radius: 16px;
-  background: #f6f3ea;
+  background: var(--pd-cream);
   border: 1px solid #d4c09a;
   border-top: 3px solid #b8943e;
   box-shadow: 0 22px 56px rgba(5, 10, 24, 0.38);

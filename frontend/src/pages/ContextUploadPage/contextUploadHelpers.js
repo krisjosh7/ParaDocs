@@ -287,7 +287,8 @@ export async function createResearchContext(caseId, { title, caption, sourceUrl 
   return normalizeContextItemFromApi(payload)
 }
 
-export async function createTextContext(caseId, { title, caption, textFull }) {
+export async function createTextContext(caseId, { title, caption, textFull, apiBase } = {}) {
+  const base = String(apiBase ?? API_BASE).replace(/\/$/, '')
   const body = new FormData()
   body.append('context_type', 'text')
   body.append('title', title || '')
@@ -295,7 +296,7 @@ export async function createTextContext(caseId, { title, caption, textFull }) {
   body.append('text_full', textFull || '')
   body.append('doc_subtype', '')
   body.append('source_url', '')
-  const res = await fetch(`${API_BASE}/cases/${encodeURIComponent(caseId)}/contexts`, {
+  const res = await fetch(`${base}/cases/${encodeURIComponent(caseId)}/contexts`, {
     method: 'POST',
     body,
   })
@@ -313,7 +314,8 @@ export async function createTextContext(caseId, { title, caption, textFull }) {
   return normalizeContextItemFromApi(payload)
 }
 
-export async function createFileContext(caseId, file, { type, title, caption, docSubtype }) {
+export async function createFileContext(caseId, file, { type, title, caption, docSubtype, apiBase } = {}) {
+  const base = String(apiBase ?? API_BASE).replace(/\/$/, '')
   const body = new FormData()
   body.append('file', file)
   body.append('context_type', type)
@@ -322,7 +324,7 @@ export async function createFileContext(caseId, file, { type, title, caption, do
   body.append('text_full', '')
   body.append('doc_subtype', docSubtype || '')
   body.append('source_url', '')
-  const res = await fetch(`${API_BASE}/cases/${encodeURIComponent(caseId)}/contexts`, {
+  const res = await fetch(`${base}/cases/${encodeURIComponent(caseId)}/contexts`, {
     method: 'POST',
     body,
   })

@@ -318,7 +318,7 @@
 }
 
 .pd-vtl-wrap .vertical-timeline-element-content-arrow {
-  border-right-color: #f6f3ea !important;
+  border-right-color: var(--pd-cream) !important;
 }
 
 .pd-timeline-dot-svg,

@@ -227,7 +227,7 @@
   min-height: 0;
   max-height: var(--context-card-block-height);
   border-radius: 16px;
-  background: #f6f3ea;
+  background: var(--pd-cream);
   border: 1px solid #d4c09a;
   border-top: 3px solid #b8943e;
   box-shadow: 0 10px 28px rgba(5, 10, 24, 0.22);
@@ -886,7 +886,7 @@
   max-height: min(90vh, 880px);
   overflow: hidden;
   border-radius: 18px;
-  background: #f6f3ea;
+  background: var(--pd-cream);
   border: 1px solid #d4c09a;
   border-top: 3px solid #b8943e;
   box-shadow: 0 24px 60px rgba(5, 10, 24, 0.45);
@@ -1133,7 +1133,7 @@
   font-size: 0.82rem;
   font-weight: 800;
   color: #1c2744;
-  background: #f6f3ea;
+  background: var(--pd-cream);
   border: 1px solid #e6dcc4;
 }
 

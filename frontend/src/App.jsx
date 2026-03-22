@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Routes, Route, useNavigate } from 'react-router-dom'
 import FloatingActionButton from './components/FloatingActionButton.jsx'
 import MainContent from './components/MainContent.jsx'
 import CasePage from './pages/CasePage/CasePage.jsx'
+import ChatPage from './pages/ChatPage.jsx'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
 
@@ -19,28 +20,12 @@ function normalizeCaseFromApi(raw) {
 
 function HomePage({ cases, setCases, casesLoading, casesError }) {
   const navigate = useNavigate()
-  const [currentView, setCurrentView] = useState('home')
   const [searchQuery, setSearchQuery] = useState('')
   const [pendingDelete, setPendingDelete] = useState(null)
   const [newCaseOpen, setNewCaseOpen] = useState(false)
   const [newCaseTitle, setNewCaseTitle] = useState('')
   const [newCaseDescription, setNewCaseDescription] = useState('')
   const [newCaseSubmitting, setNewCaseSubmitting] = useState(false)
-  const [chatCaseId, setChatCaseId] = useState('')
-  const chatCaseDefaultedRef = useRef(false)
-
-  useEffect(() => {
-    if (cases.length === 0 || chatCaseDefaultedRef.current) return
-    setChatCaseId(cases[0].id)
-    chatCaseDefaultedRef.current = true
-  }, [cases])
-
-  useEffect(() => {
-    if (cases.length === 0) return
-    if (chatCaseId && !cases.some((c) => c.id === chatCaseId)) {
-      setChatCaseId(cases[0].id)
-    }
-  }, [cases, chatCaseId])
 
   const q = searchQuery.trim().toLowerCase()
   const filteredCases = useMemo(
@@ -150,15 +135,9 @@ function HomePage({ cases, setCases, casesLoading, casesError }) {
   return (
     <div className="home-shell">
       <MainContent
-        currentView={currentView}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        onGoHome={() => setCurrentView('home')}
-        onShowChat={() => setCurrentView('chat')}
-        cases={cases}
-        chatCaseId={chatCaseId}
-        onChatCaseIdChange={setChatCaseId}
-        apiBase={API_BASE}
+        onGoHome={() => navigate('/')}
       >
         <div className="cases-gallery-wrap">
           <section id="cases-grid" className="cases-gallery" aria-live="polite">
@@ -339,7 +318,7 @@ function HomePage({ cases, setCases, casesLoading, casesError }) {
           </div>
         </div>
       )}
-      {currentView === 'home' && <FloatingActionButton onNewCase={openNewCaseModal} />}
+      <FloatingActionButton onNewCase={openNewCaseModal} />
     </div>
   )
 }
@@ -394,6 +373,7 @@ export default function App() {
             />
           }
         />
+        <Route path="/chat" element={<ChatPage cases={cases} apiBase={API_BASE} />} />
         <Route path="/case/:caseId/*" element={<CasePage cases={cases} />} />
       </Routes>
     </div>

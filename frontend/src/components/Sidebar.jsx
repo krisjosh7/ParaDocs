@@ -1,30 +1,28 @@
-export default function Sidebar({ currentView, onGoHome, onShowChat }) {
+import { NavLink } from 'react-router-dom'
+
+export default function Sidebar() {
   const items = [
-    { id: 'home', icon: 'H', label: 'Home', onClick: onGoHome },
-    { id: 'chat', icon: 'C', label: 'Chat', onClick: onShowChat },
+    { to: '/', end: true, icon: 'H', label: 'Home' },
+    { to: '/chat', end: true, icon: 'C', label: 'Assistant chat' },
   ]
 
   return (
     <aside className="left-sidebar" aria-label="Primary">
       <div className="left-sidebar-icons">
-        {items.map((item) => {
-          const isActive =
-            (item.id === 'home' && currentView === 'home') ||
-            (item.id === 'chat' && currentView === 'chat')
-
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={`sidebar-icon-button${isActive ? ' sidebar-icon-button--active' : ''}`}
-              aria-label={item.label}
-              title={item.label}
-              onClick={item.onClick}
-            >
-              <span aria-hidden="true">{item.icon}</span>
-            </button>
-          )
-        })}
+        {items.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) =>
+              `sidebar-icon-button${isActive ? ' sidebar-icon-button--active' : ''}`
+            }
+            aria-label={item.label}
+            title={item.label}
+          >
+            <span aria-hidden="true">{item.icon}</span>
+          </NavLink>
+        ))}
       </div>
     </aside>
   )

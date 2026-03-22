@@ -118,7 +118,7 @@
 /* ── Task checklist ────────────────────────── */
 
 .task-checklist {
-  background: #f6f3ea;
+  background: var(--pd-cream);
   border: 1px solid #d4c09a;
   border-top: 3px solid #b8943e;
   border-radius: 14px;
@@ -254,7 +254,7 @@
 }
 
 .stat-card {
-  background: #f6f3ea;
+  background: var(--pd-cream);
   border: 1px solid #d4c09a;
   border-top: 3px solid #b8943e;
   border-radius: 14px;
@@ -264,7 +264,7 @@
 
 .stat-card--research {
   /* Match Progress / Tasks card shell (cream + gold accent) */
-  background: #f6f3ea;
+  background: var(--pd-cream);
   border: 1px solid #d4c09a;
   border-top: 3px solid #b8943e;
   position: relative;
@@ -751,7 +751,7 @@ button.timeline-simple-card-source-link {
 }
 
 .vertical-timeline-element-content-arrow {
-  border-right-color: #f6f3ea !important;
+  border-right-color: var(--pd-cream) !important;
 }
 
 /* ── Responsive ────────────────────────────── */

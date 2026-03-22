@@ -25,25 +25,27 @@
   align-items: center;
   gap: 8px;
   padding: 10px 18px;
-  border: 1px solid rgba(245, 240, 232, 0.25);
+  border: 1px solid rgba(245, 240, 232, 0.18);
   border-radius: 999px;
-  background: #2a3f6e;
-  color: #f5f0e8;
+  background: var(--pd-page-bg);
+  color: rgba(245, 240, 232, 0.5);
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 150ms ease, transform 150ms ease;
+  transition: background-color 150ms ease, border-color 150ms ease, color 260ms ease;
 }
 
-.record-btn:hover {
-  background: #b8943e;
-  transform: translateY(-1px);
+.record-btn:hover:not(.record-btn--active) {
+  background: var(--pd-page-bg);
+  border-color: rgba(245, 240, 232, 0.26);
+  color: rgba(245, 240, 232, 0.75);
 }
 
 .record-btn--active {
   background: #7b1c1c;
   border-color: rgba(255, 95, 95, 0.4);
+  color: #f5f0e8;
 }
 
 .record-btn--active:hover {
@@ -56,6 +58,11 @@
   border-radius: 50%;
   background: rgba(245, 240, 232, 0.5);
   flex-shrink: 0;
+  transition: background-color 260ms ease;
+}
+
+.record-btn:hover:not(.record-btn--active) .record-dot:not(.record-dot--pulse) {
+  background: rgba(245, 240, 232, 0.75);
 }
 
 .record-dot--pulse {
