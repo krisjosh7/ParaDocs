@@ -537,8 +537,8 @@ export default function CasePage({ cases }) {
                       </p>
                     ) : researchSummary && researchSummary.total_runs === 0 ? (
                       <p className="research-empty-hint">
-                        No agent runs yet. Add context in Discovery — each ingest kicks off the full pipeline including
-                        CourtListener research when configured.
+                        No agent runs yet. Add context in Discovery — each ingest rebuilds the timeline; CourtListener
+                        research runs at most once per case when there is enough context, then a short reasoning pass.
                       </p>
                     ) : null}
                     {researchSummaryError ? (

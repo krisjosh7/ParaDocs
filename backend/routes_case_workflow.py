@@ -15,7 +15,7 @@ class RunCaseWorkflowBody(BaseModel):
 
 @router.post("/{case_id}/workflow/run")
 async def post_run_case_workflow(case_id: str, body: RunCaseWorkflowBody) -> dict:
-    """Run ingest → events → timeline → research for one document worth of raw text."""
+    """Run ingest → events → timeline → optional one-time research → reasoning for one document."""
     state = initial_case_state(case_id, body.raw_text, body.source)
     final = await run_case_workflow(state)
     return dict(final)

@@ -20,6 +20,9 @@ class CaseState(TypedDict):
     research_results: list
     research_stop_reason: str | None
     research_iteration: int
+    # Phase 4: date backfill + optional timeline refresh after timeline/research
+    reasoning_backfill_changes: int
+    reasoning_timeline_refreshed: bool
     hypotheses: list
     tasks: list
 
@@ -41,6 +44,8 @@ def initial_case_state(
         "research_results": [],
         "research_stop_reason": None,
         "research_iteration": 0,
+        "reasoning_backfill_changes": 0,
+        "reasoning_timeline_refreshed": False,
         "hypotheses": [],
         "tasks": [],
     }
