@@ -130,23 +130,27 @@ function ChevronIcon({ open }) {
   )
 }
 
-/** Exact provenance for each fork card (matches backend timeline source_context). */
-function BranchCardExactSource({ caseId, sourceContext: sc, docId }) {
+/** Deep-link to Discovery for this event’s source (context library row or discovered doc). */
+function TimelineSourceLink({ caseId, sourceContext: sc, docId, variant = 'simple' }) {
   const href = discoveryContextUploadHref(caseId, sc, docId)
-  const text = exactSourceLinkText(sc, docId)
+  const linkText = (exactSourceLinkText(sc, docId) || (href ? 'Open in Discovery' : '')).trim()
+  const fork = variant === 'fork'
+  const wrapClass = fork ? 'timeline-fork-card-source' : 'timeline-simple-card-source'
+  const linkClass = fork ? 'timeline-fork-card-source-link' : 'timeline-simple-card-source-link'
+  const fallbackClass = fork ? 'timeline-fork-card-source-fallback' : 'timeline-simple-card-source-fallback'
 
-  if (!href || !text) {
+  if (!href) {
     return (
-      <div className="timeline-fork-card-source">
-        <p className="timeline-fork-card-source-fallback">Not linked to Context Library or ingest metadata.</p>
+      <div className={wrapClass}>
+        <p className={fallbackClass}>Not linked to Context Library or ingest metadata.</p>
       </div>
     )
   }
 
   return (
-    <div className="timeline-fork-card-source">
-      <Link className="timeline-fork-card-source-link" to={href}>
-        {text}
+    <div className={wrapClass}>
+      <Link className={linkClass} to={href}>
+        {linkText || 'Open in Discovery'}
       </Link>
     </div>
   )
@@ -190,7 +194,7 @@ function previewForSelectedBranch(item, selectedEventsIndex) {
   }
 }
 
-function ForkCollapsedPanel({ item, selectedEventsIndex, onExpand, onOpenSource, weak }) {
+function ForkCollapsedPanel({ caseId, item, selectedEventsIndex, onExpand, weak }) {
   const p = previewForSelectedBranch(item, selectedEventsIndex)
 
   return (
@@ -206,13 +210,12 @@ function ForkCollapsedPanel({ item, selectedEventsIndex, onExpand, onOpenSource,
           <ChevronIcon open={false} />
           Compare accounts
         </button>
-        <button
-          type="button"
-          className="pd-fork-source-link"
-          onClick={() => onOpenSource(p)}
-        >
-          Source
-        </button>
+        <TimelineSourceLink
+          variant="fork"
+          caseId={caseId}
+          sourceContext={p.source_context}
+          docId={p.doc_id}
+        />
       </div>
     </div>
   )
@@ -239,7 +242,6 @@ function TimelineBranchBlock({
   selectedEventsIndex,
   algorithmicWinnerIndex,
   onPrefer,
-  onOpenSource,
   onCollapse,
   rootRef,
   maxPrimarySupport,
@@ -275,19 +277,6 @@ function TimelineBranchBlock({
     selectedEventsIndex,
   )
 
-  function openCard(c) {
-    onOpenSource({
-      date: c.date,
-      title: c.title,
-      description: c.description,
-      doc_id: c.doc_id,
-      confidence: c.confidence,
-      support_score: c.support_score,
-      source_context: c.source_context,
-      events_json_index: c.events_json_index,
-    })
-  }
-
   return (
     <div ref={rootRef} className="timeline-branch-block pd-fork-expanded-root">
       <div className="pd-fork-expanded-toolbar">
@@ -298,7 +287,7 @@ function TimelineBranchBlock({
       </div>
       <div className="timeline-fork-header">
         <TimelineForkIcon />
-        <span>Conflicting accounts — source is listed on each card; open details or prefer a version below</span>
+        <span>Conflicting accounts — use the source link on each card to open Discovery, or prefer a version below</span>
       </div>
 
       {bl && !bl.skipped && (bl.comparison_summary || bl.model_error) && (
@@ -344,16 +333,17 @@ function TimelineBranchBlock({
                 .join(' ')}
             >
               <div className="timeline-fork-card-inner">
-                <button
-                  type="button"
-                  className="timeline-fork-card-main"
-                  onClick={() => openCard(card)}
-                >
+                <div className="timeline-fork-card-body">
                   <h3 className="timeline-event-title">{card.title}</h3>
                   <p className="timeline-event-desc">{card.description}</p>
-                </button>
+                </div>
                 <div className="timeline-fork-card-actions">
-                  <BranchCardExactSource caseId={caseId} sourceContext={card.source_context} docId={card.doc_id} />
+                  <TimelineSourceLink
+                    variant="fork"
+                    caseId={caseId}
+                    sourceContext={card.source_context}
+                    docId={card.doc_id}
+                  />
                   {!selected && (
                     <button
                       type="button"
@@ -399,7 +389,7 @@ const timelineNodeOuterIconStyle = {
   boxShadow: 'none',
 }
 
-export default function CaseTimeline({ caseId, events, branchPick, onPreferBranch, onOpenSource }) {
+export default function CaseTimeline({ caseId, events, branchPick, onPreferBranch }) {
   const [expandedForkIds, setExpandedForkIds] = useState(() => new Set())
   const expandedRootRefs = useRef(new Map())
 
@@ -494,10 +484,10 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
               <TimelineDateNearNode date={event.date} sortDate={event.sort_date} />
               {branch && !expanded ? (
                 <ForkCollapsedPanel
+                  caseId={caseId}
                   item={event}
                   selectedEventsIndex={selectedIdx}
                   onExpand={() => expandFork(event.id)}
-                  onOpenSource={onOpenSource}
                   weak={collapsedPreviewWeak}
                 />
               ) : branch ? (
@@ -507,7 +497,6 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
                   selectedEventsIndex={selectedIdx}
                   algorithmicWinnerIndex={algorithmicWinnerIndex}
                   onPrefer={onPreferBranch}
-                  onOpenSource={onOpenSource}
                   onCollapse={() => collapseFork(event.id)}
                   maxPrimarySupport={maxPrimarySupport}
                   rootRef={(el) => {
@@ -516,24 +505,15 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
                   }}
                 />
               ) : (
-                <button
-                  type="button"
-                  className={`timeline-simple-card${weakSimple ? ' timeline-simple-card--weak' : ''}`}
-                  onClick={() =>
-                    onOpenSource({
-                      date: event.date,
-                      title: event.title,
-                      description: event.description,
-                      doc_id: event.doc_id,
-                      confidence: event.confidence,
-                      support_score: event.support_score,
-                      source_context: event.source_context,
-                      events_json_index: event.events_json_index,
-                    })}
-                >
+                <div className={`timeline-simple-card${weakSimple ? ' timeline-simple-card--weak' : ''}`}>
                   <h3 className="timeline-event-title">{event.title}</h3>
                   <p className="timeline-event-desc">{event.description}</p>
-                </button>
+                  <TimelineSourceLink
+                    caseId={caseId}
+                    sourceContext={event.source_context}
+                    docId={event.doc_id}
+                  />
+                </div>
               )}
             </VerticalTimelineElement>
           )

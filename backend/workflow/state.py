@@ -7,6 +7,7 @@ class CaseState(TypedDict):
     case_id: str
     raw_text: str
     source: str  # "upload" | "tts" | "web"
+    context_id: str | None  # Discovery catalog row id when ingest is from context library
 
     documents: list  # accumulated Document dicts with doc_id, summary, etc.
     structured: list  # accumulated StructuredDocument dicts
@@ -23,12 +24,15 @@ class CaseState(TypedDict):
     tasks: list
 
 
-def initial_case_state(case_id: str, raw_text: str, source: str = "upload") -> CaseState:
+def initial_case_state(
+    case_id: str, raw_text: str, source: str = "upload", *, context_id: str | None = None
+) -> CaseState:
     """Default state for a single-document run of the case pipeline (Phases 1–3)."""
     return {
         "case_id": case_id,
         "raw_text": raw_text,
         "source": source,
+        "context_id": (context_id.strip() if isinstance(context_id, str) and context_id.strip() else None),
         "documents": [],
         "structured": [],
         "events": [],

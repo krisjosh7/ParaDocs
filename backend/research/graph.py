@@ -1,5 +1,4 @@
-"""
-LangGraph subgraph for the research pipeline.
+"""LangGraph subgraph for the research pipeline.
 
 Topology:
     START
@@ -15,6 +14,8 @@ Topology:
 Each node calls the corresponding router function directly (no HTTP hop).
 The router functions own the business logic; the graph owns the wiring.
 """
+
+import logging
 
 from langgraph.graph import StateGraph, START, END
 
@@ -33,6 +34,8 @@ from research.router import (
     store,
     decide,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------

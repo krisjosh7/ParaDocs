@@ -32,3 +32,8 @@ def test_resolve_context_library_match(tmp_path: Path, monkeypatch: pytest.Monke
     assert r["kind"] == "context_library"
     assert r["title"] == "My memo"
     assert r["context_id"] == "ctx-1"
+
+    r2 = resolve_timeline_source(cid, "different-doc-id", "ctx-1")
+    assert r2["kind"] == "context_library"
+    assert r2["title"] == "My memo"
+    assert r2["context_id"] == "ctx-1"

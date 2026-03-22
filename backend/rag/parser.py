@@ -4,6 +4,7 @@ import json
 
 from fastapi import HTTPException
 
+from event_date_enrichment import enrich_events_from_source_text
 from groq_llm import generate_json
 
 from schemas import Document, StructuredDocument
@@ -20,7 +21,8 @@ Rules:
 - Events / claims / damages: the "event", "type", and similar fields must be phrased from what the text actually says, not from general legal categories unless the text uses them.
 - source_span MUST be an exact, contiguous copy-paste substring from the Source text (same spelling/punctuation). If you cannot find such a substring, set source_span to "" and set confidence to 0.2 or lower for that item (or omit the item if there is no support at all).
 - summary.text: short neutral restatement of only what appears in the source. If the source is empty or non-informative, use "" with low summary.confidence.
-- Dates and amounts: only if explicitly present; otherwise null or "".
+- Dates and amounts: only if explicitly present in the Source text; otherwise null or "".
+- For events: if the Source text includes a document header line such as "Date Filed:" or "Date Decided:" with a calendar date, you may set that date on events that describe filing, the lawsuit, counterclaims, or the appeal when the body does not give a more specific date for that same milestone. Do not use a filing date for unrelated facts (e.g. contract formation) unless the text ties them to that date.
 - If unknown, use null for optional dates/amounts, empty strings, empty arrays, or low confidence.
 - confidence values must be between 0 and 1; use lower values whenever support is weak or span is missing.
 
@@ -116,6 +118,7 @@ def parse_legal_structure(document: Document) -> StructuredDocument:
     data["doc_id"] = document.doc_id
     data = _normalize_parsed_dict(data)
     _drop_ungrounded_spans(document.raw_text, data)
+    enrich_events_from_source_text(data.get("events") or [], document.raw_text)
     try:
         return StructuredDocument.model_validate(data)
     except Exception as exc:

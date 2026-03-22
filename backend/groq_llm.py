@@ -1,4 +1,4 @@
-"""Groq API helpers with automatic fallback to NVIDIA NIM on rate limits."""
+"""Groq API helpers: retry on Groq 429 with backoff, then fall back to NVIDIA NIM (also retries 429)."""
 
 from __future__ import annotations
 
@@ -20,6 +20,25 @@ _THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 # ── NVIDIA NIM fallback config ────────────────────────────────────────────────
 _NVIDIA_BASE = "https://integrate.api.nvidia.com/v1/chat/completions"
 _NVIDIA_MODEL = "qwen/qwen3.5-122b-a10b"
+
+
+def _groq_rate_limit_extra_attempts() -> int:
+    """How many *additional* tries after the first 429 before falling back to NIM (clamped)."""
+    raw = os.environ.get("GROQ_RATE_LIMIT_RETRIES", "3").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        n = 3
+    return max(0, min(n, 12))
+
+
+def _groq_rate_limit_backoff_base_seconds() -> float:
+    raw = os.environ.get("GROQ_RATE_LIMIT_RETRY_BASE_SECONDS", "1.5").strip()
+    try:
+        s = float(raw)
+    except ValueError:
+        s = 1.5
+    return max(0.25, min(s, 120.0))
 
 
 def default_model() -> str:
@@ -181,7 +200,15 @@ def _nvidia_completion(
         print(f"[NIM] Success on attempt {attempt + 1}")
         return _strip_thinking(content.strip())
 
-    raise RuntimeError(f"NVIDIA NIM rate-limited after {_max_retries} retries")
+    raise RuntimeError(f"NVIDIA NIM rate-limited after {_max_retries} attempts")
+
+
+def _groq_daily_token_limit_hit(exc: BaseException) -> bool:
+    """Groq TPD (tokens-per-day) exhaustion won't clear with short backoff; skip retry loop."""
+    s = str(exc).lower()
+    if "tokens per day" in s:
+        return True
+    return "tpd" in s and ("limit" in s or "exceeded" in s)
 
 
 def _completion_text(
