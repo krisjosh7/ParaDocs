@@ -361,27 +361,15 @@ async def run_research(req: RunResearchRequest):
     (graph.py imports from this module).
     """
     from research.graph import research_subgraph
-    from research.state import ResearchState
+    from research.state import initial_research_graph_state
 
-    initial: ResearchState = {
-        "case_id": req.case_id,
-        "case_facts": "",
-        "iteration": 0,
-        "stop_reason": None,
-        "queries_run": [],
-        "queries_to_run": [],
-        "raw_results": [],
-        "scored_results": [],
-        "all_stored_results": [],
-        "seen_result_ids": [],
-        "top_result_ids": [],
-    }
+    initial = initial_research_graph_state(req.case_id)
 
     final = await research_subgraph.ainvoke(initial)
 
     return RunResearchResponse(
         case_id=req.case_id,
-        stop_reason=final["stop_reason"],
+        stop_reason=final["stop_reason"] or "",
         all_stored_results=final["all_stored_results"],
         iteration=final["iteration"],
     )

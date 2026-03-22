@@ -12,9 +12,31 @@ class CaseState(TypedDict):
     structured: list  # accumulated StructuredDocument dicts
     events: list  # extracted + normalized Event dicts
 
-    # Phase 2-4 placeholders (pass-through for now)
+    # Phase 2: full timelines.json payload after rebuild_timeline node
     timelines: dict
-    conflicts: list
+    conflicts: list  # reserved
+    # Phase 3: research_subgraph output (all_stored_results) + metadata
     research_results: list
+    research_stop_reason: str | None
+    research_iteration: int
     hypotheses: list
     tasks: list
+
+
+def initial_case_state(case_id: str, raw_text: str, source: str = "upload") -> CaseState:
+    """Default state for a single-document run of the case pipeline (Phases 1–3)."""
+    return {
+        "case_id": case_id,
+        "raw_text": raw_text,
+        "source": source,
+        "documents": [],
+        "structured": [],
+        "events": [],
+        "timelines": {},
+        "conflicts": [],
+        "research_results": [],
+        "research_stop_reason": None,
+        "research_iteration": 0,
+        "hypotheses": [],
+        "tasks": [],
+    }
