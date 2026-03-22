@@ -165,6 +165,12 @@ export default function CasePage({ cases }) {
   const [researchSummaryError, setResearchSummaryError] = useState(null)
   const [sourcePanelCard, setSourcePanelCard] = useState(null)
 
+  // Live research SSE state
+  const [researchLogs, setResearchLogs] = useState([])
+  const [researchLiveStats, setResearchLiveStats] = useState({ found: 0, analyzing: 0, approved: 0 })
+  const [researchIsLive, setResearchIsLive] = useState(false)
+  const [researchLatestResult, setResearchLatestResult] = useState(null)
+
   const fetchResearchSummary = useCallback(async () => {
     if (!caseId) return
     try {
@@ -185,6 +191,64 @@ export default function CasePage({ cases }) {
     const timer = window.setInterval(fetchResearchSummary, 12000)
     return () => window.clearInterval(timer)
   }, [caseId, isDiscoveryRoute, activeTab, fetchResearchSummary])
+
+  // SSE connection for live research feed
+  useEffect(() => {
+    if (!caseId || isDiscoveryRoute || activeTab !== 'Case Dashboard') return undefined
+    const url = `${API_BASE}/research/cases/${encodeURIComponent(caseId)}/stream`
+    let es
+    try {
+      es = new EventSource(url)
+    } catch {
+      return undefined
+    }
+
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.type === 'connected') {
+          return
+        }
+        if (data.type === 'status') {
+          if (data.status === 'running') {
+            setResearchIsLive(true)
+            setResearchLogs([])
+            setResearchLiveStats({ found: 0, analyzing: 0, approved: 0 })
+            setResearchLatestResult(null)
+          }
+          if (data.status === 'complete') {
+            setResearchIsLive(false)
+            fetchResearchSummary()
+          }
+        }
+        if (data.type === 'log') {
+          setResearchLogs((prev) => [...prev.slice(-49), data.msg])
+        }
+        if (data.type === 'stats') {
+          setResearchLiveStats((prev) => ({
+            found: data.found != null ? data.found : prev.found,
+            analyzing: data.analyzing != null ? data.analyzing : prev.analyzing,
+            approved: data.approved != null ? data.approved : prev.approved,
+          }))
+        }
+        if (data.type === 'stored_result') {
+          setResearchLatestResult(data)
+        }
+      } catch {
+        // ignore malformed SSE
+      }
+    }
+
+    es.onerror = () => {
+      // EventSource auto-reconnects; we just update live status
+      setResearchIsLive(false)
+    }
+
+    return () => {
+      es.close()
+    }
+  }, [caseId, isDiscoveryRoute, activeTab, fetchResearchSummary])
+
 
   useEffect(() => {
     if (!caseId) {
@@ -360,58 +424,109 @@ export default function CasePage({ cases }) {
               <div className="case-page-sidebar">
                 <div className="stat-card stat-card--research">
                   <div className="stat-card-research-top">
-                    <h2 className="stat-card-heading">Research agent</h2>
-                    {researchSummary && researchRunIsFresh(researchSummary.last_run_at) ? (
-                      <span className="research-live-badge" title="A research pass finished within the last 2 minutes">
-                        <span className="research-live-dot" aria-hidden />
-                        Live
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="stat-card-body stat-card-body--research">
-                    <div className="research-hero">
-                      <strong className="stat-big-number stat-big-number--research" aria-live="polite">
-                        {researchSummary == null && !researchSummaryError ? '…' : researchSummary?.unique_sources_count ?? 0}
-                      </strong>
-                      <span className="research-hero-caption">unique opinions indexed</span>
-                    </div>
-                    <div className="research-meta-strip">
-                      <div className="research-meta-chip" title="Completed research passes for this case">
-                        <span className="research-meta-chip-label">Passes</span>
-                        <span className="research-meta-chip-value">{researchSummary?.total_runs ?? 0}</span>
-                      </div>
-                      <div className="research-meta-chip" title="Sources stored in the most recent pass">
-                        <span className="research-meta-chip-label">Last batch</span>
-                        <span className="research-meta-chip-value">
-                          {researchSummary?.last_batch_stored_count ?? '—'}
+                    <div className="research-title-row">
+                      <h2 className="stat-card-heading research-heading-inline">Research Agent</h2>
+                      {researchIsLive || (researchSummary && researchRunIsFresh(researchSummary.last_run_at)) ? (
+                        <span className="research-live-badge" title="Research pipeline is active">
+                          <span className="research-live-dot" aria-hidden />
+                          Live
+                        </span>
+                      ) : null}
+                      <div className="research-stats-bar" aria-live="polite">
+                        <span className="research-stat-pill research-stat-pill--found" title="Sources found by search">
+                          {researchIsLive ? researchLiveStats.found : (researchSummary?.unique_sources_count ?? 0)} Found
+                        </span>
+                        <span className="research-stat-pill research-stat-pill--analyzing" title="Sources being analyzed">
+                          {researchIsLive ? researchLiveStats.analyzing : 0} Analyzing
+                        </span>
+                        <span className="research-stat-pill research-stat-pill--approved" title="Sources approved and saved">
+                          {researchIsLive ? researchLiveStats.approved : (researchSummary?.last_batch_stored_count ?? 0)} Approved
                         </span>
                       </div>
                     </div>
-                    {researchSummary?.last_run_at ? (
-                      <p className="research-last-run">
-                        <span className="research-last-run-label">Last run</span>
-                        <span className="research-last-run-time">{formatRelativeTime(researchSummary.last_run_at)}</span>
-                        {researchSummary.last_run_added_unique != null && researchSummary.last_run_added_unique > 0 ? (
-                          <span className="research-last-run-new">+{researchSummary.last_run_added_unique} new</span>
-                        ) : null}
-                        {formatResearchStopReason(researchSummary.last_stop_reason) ? (
-                          <span className="research-last-run-stop">
-                            · {formatResearchStopReason(researchSummary.last_stop_reason)}
-                          </span>
-                        ) : null}
-                      </p>
-                    ) : researchSummary && researchSummary.total_runs === 0 ? (
-                      <p className="research-empty-hint">
-                        No agent runs yet. Add context in Discovery — each ingest rebuilds the timeline; CourtListener
-                        research runs at most once per case when there is enough context, then a short reasoning pass.
-                      </p>
+                  </div>
+
+                  <div className="stat-card-body stat-card-body--research">
+                    {/* Latest stored result blurb */}
+                    {researchLatestResult ? (
+                      <div className="research-latest-result">
+                        <div className="research-latest-result-header">
+                          <span className="research-latest-result-name">{researchLatestResult.case_name}</span>
+                          {researchLatestResult.relevance_score != null && (
+                            <span className="research-latest-result-score">
+                              {(researchLatestResult.relevance_score * 100).toFixed(0)}%
+                            </span>
+                          )}
+                        </div>
+                        <p className="research-latest-result-reason">{researchLatestResult.relevance_reason}</p>
+                        {researchLatestResult.citation && (
+                          <span className="research-latest-result-cite">{researchLatestResult.citation}</span>
+                        )}
+                      </div>
+                    ) : researchSummary && researchSummary.total_runs > 0 ? (
+                      <div className="research-hero">
+                        <strong className="stat-big-number stat-big-number--research" aria-live="polite">
+                          {researchSummary?.unique_sources_count ?? 0}
+                        </strong>
+                        <span className="research-hero-caption">unique opinions indexed</span>
+                      </div>
+                    ) : researchSummary == null && !researchSummaryError ? (
+                      <div className="research-hero">
+                        <strong className="stat-big-number stat-big-number--research">…</strong>
+                        <span className="research-hero-caption">loading</span>
+                      </div>
                     ) : null}
+
+                    {/* Live log feed */}
+                    {researchLogs.length > 0 && (
+                      <div className="research-log-feed">
+                        {researchLogs.map((msg, i) => (
+                          <div key={i} className="research-log-line">{msg}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Summary strip when not live */}
+                    {!researchIsLive && researchLogs.length === 0 && (
+                      <>
+                        <div className="research-meta-strip">
+                          <div className="research-meta-chip" title="Completed research passes for this case">
+                            <span className="research-meta-chip-label">Passes</span>
+                            <span className="research-meta-chip-value">{researchSummary?.total_runs ?? 0}</span>
+                          </div>
+                          <div className="research-meta-chip" title="Sources stored in the most recent pass">
+                            <span className="research-meta-chip-label">Last batch</span>
+                            <span className="research-meta-chip-value">
+                              {researchSummary?.last_batch_stored_count ?? '—'}
+                            </span>
+                          </div>
+                        </div>
+                        {researchSummary?.last_run_at ? (
+                          <p className="research-last-run">
+                            <span className="research-last-run-label">Last run</span>
+                            <span className="research-last-run-time">{formatRelativeTime(researchSummary.last_run_at)}</span>
+                            {researchSummary.last_run_added_unique != null && researchSummary.last_run_added_unique > 0 ? (
+                              <span className="research-last-run-new">+{researchSummary.last_run_added_unique} new</span>
+                            ) : null}
+                            {formatResearchStopReason(researchSummary.last_stop_reason) ? (
+                              <span className="research-last-run-stop">
+                                · {formatResearchStopReason(researchSummary.last_stop_reason)}
+                              </span>
+                            ) : null}
+                          </p>
+                        ) : researchSummary && researchSummary.total_runs === 0 ? (
+                          <p className="research-empty-hint">
+                            No agent runs yet. Add context in Discovery to trigger research.
+                          </p>
+                        ) : null}
+                      </>
+                    )}
+
                     {researchSummaryError ? (
                       <p className="research-summary-error" role="alert">
                         {researchSummaryError}
                       </p>
                     ) : null}
-                    <p className="research-poll-hint">Updates every 12s while you&apos;re on this tab.</p>
                   </div>
                 </div>
 

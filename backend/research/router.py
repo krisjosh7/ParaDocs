@@ -1,10 +1,12 @@
 import asyncio
+import json
 import logging
 import os
 from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from research.courtlistener import (
@@ -14,6 +16,7 @@ from research.courtlistener import (
 )
 from research.prompts import run_generate_queries, run_score_result
 from research.state import MAX_ITERATIONS, RELEVANCE_THRESHOLD
+from research.event_bus import emit as _emit, subscribe as _subscribe, unsubscribe as _unsubscribe
 
 router = APIRouter(prefix="/research", tags=["research"])
 _logger = logging.getLogger(__name__)
@@ -57,6 +60,7 @@ class ScoreRequest(BaseModel):
     case_facts: str
     raw_results: list[dict]
     seen_result_ids: list[str]
+    case_id: str = ""  # optional, used for SSE live feed
 
 class ScoreResponse(BaseModel):
     scored_results: list[dict]
@@ -118,6 +122,48 @@ def get_research_case_summary(case_id: str) -> ResearchCaseSummaryOut:
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     return ResearchCaseSummaryOut(**d)
+
+
+# ---------------------------------------------------------------------------
+# GET /research/cases/{case_id}/stream  — SSE live log feed
+# ---------------------------------------------------------------------------
+
+
+@router.get("/cases/{case_id}/stream")
+async def stream_research_events(case_id: str):
+    """SSE endpoint — streams live research pipeline events to the frontend."""
+
+    async def event_generator():
+        q = await _subscribe(case_id)
+        try:
+            # Send initial keepalive
+            yield f"data: {json.dumps({'type': 'connected', 'case_id': case_id})}\n\n"
+            while True:
+                try:
+                    payload = await asyncio.wait_for(q.get(), timeout=30.0)
+                    yield f"data: {payload}\n\n"
+                    # If it's a "complete" status, close the stream
+                    try:
+                        parsed = json.loads(payload)
+                        if parsed.get("type") == "status" and parsed.get("status") == "complete":
+                            break
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+                except asyncio.TimeoutError:
+                    # Keepalive comment to prevent connection timeout
+                    yield ": keepalive\n\n"
+        finally:
+            await _unsubscribe(case_id, q)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -271,16 +317,22 @@ async def score(req: ScoreRequest):
 
     semaphore = asyncio.Semaphore(SCORE_CONCURRENCY)
 
+    _cid = req.case_id or ""
+
     async def score_one(idx: int, result: dict) -> dict | None:
         case_name = result.get("case_name", "?")
         async with semaphore:
             try:
                 print(f"[score] Scoring {idx}/{len(to_score)}: {case_name}...")
+                if _cid:
+                    _emit(_cid, {"type": "log", "msg": f"Scoring {idx}/{len(to_score)}: {case_name}"})
                 score_val, reason = await asyncio.to_thread(
                     run_score_result, req.case_facts, result
                 )
                 label = "PASS" if score_val >= RELEVANCE_THRESHOLD else "FAIL"
                 print(f"[score]   → {score_val:.2f} {label} — {reason}")
+                if _cid:
+                    _emit(_cid, {"type": "log", "msg": f"  {score_val:.0%} {label} — {reason}"})
                 if score_val >= RELEVANCE_THRESHOLD:
                     return {
                         **result,
