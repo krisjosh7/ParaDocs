@@ -1,0 +1,365 @@
+/* Wrapper so the library timeline centers in the case page column */
+.pd-vtl-wrap {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  /* Pull fork rows toward outer edges (wider compare cards); scales on large viewports */
+  --pd-fork-edge-bleed: clamp(28px, 5vw, 96px);
+}
+
+/*
+ * Fork rows need most of their timeline half-lane (44% is too narrow for two compare cards).
+ * position=left|right on each element keeps the group on one side of the spine.
+ */
+@media only screen and (min-width: 1170px) {
+  .pd-vtl-wrap .vertical-timeline--two-columns .pd-vtl-fork-element {
+    overflow: visible;
+  }
+
+  /* vertical-timeline--two-columns lives on the inner VerticalTimeline root, not on .pd-vtl-wrap */
+  /* Negative outer margin + matching width keeps the inner edge by the spine, grows toward the viewport edge */
+  .pd-vtl-wrap .vertical-timeline--two-columns .pd-vtl-fork-element.vertical-timeline-element--left .vertical-timeline-element-content {
+    float: left !important;
+    width: min(1080px, calc(50% - 48px + var(--pd-fork-edge-bleed))) !important;
+    max-width: min(1080px, calc(50% - 48px + var(--pd-fork-edge-bleed))) !important;
+    margin-left: calc(-1 * var(--pd-fork-edge-bleed)) !important;
+    margin-right: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .pd-vtl-wrap .vertical-timeline--two-columns .pd-vtl-fork-element.vertical-timeline-element--right .vertical-timeline-element-content {
+    float: right !important;
+    width: min(1080px, calc(50% - 48px + var(--pd-fork-edge-bleed))) !important;
+    max-width: min(1080px, calc(50% - 48px + var(--pd-fork-edge-bleed))) !important;
+    margin-left: 0 !important;
+    margin-right: calc(-1 * var(--pd-fork-edge-bleed)) !important;
+    box-sizing: border-box !important;
+  }
+
+  .pd-vtl-wrap .vertical-timeline--two-columns .pd-vtl-fork-element .vertical-timeline-element-content-arrow {
+    display: none !important;
+  }
+}
+
+/* Single-column / tablet: fork bubble uses full row minus icon gutter */
+@media only screen and (max-width: 1169px) {
+  .pd-vtl-wrap .pd-vtl-fork-element .vertical-timeline-element-content {
+    width: calc(100% - 60px) !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .pd-vtl-wrap .pd-vtl-fork-element .vertical-timeline-element-content-arrow {
+    display: none !important;
+  }
+}
+
+.pd-vtl-wrap .vertical-timeline {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 auto !important;
+}
+
+/* Visible spine + elements (library defaults can wash out on dark UI) */
+.pd-vtl-wrap .vertical-timeline::before {
+  background: rgba(232, 238, 252, 0.22) !important;
+  width: 3px !important;
+}
+
+.pd-vtl-wrap .vertical-timeline-element-content {
+  box-shadow: 0 4px 20px rgba(5, 10, 24, 0.28) !important;
+}
+
+/* Date is our .pd-timeline-date-near-node; hide empty library slot */
+.pd-vtl-wrap .vertical-timeline-element-content .vertical-timeline-element-date {
+  display: none !important;
+}
+
+.pd-vtl-wrap .vertical-timeline-element-icon {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.pd-vtl-wrap .vertical-timeline-element-icon svg {
+  margin: 0 !important;
+}
+
+.pd-vtl-wrap .pd-timeline-node-icon.vertical-timeline-element-icon {
+  width: auto !important;
+  height: auto !important;
+  min-width: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+@media only screen and (min-width: 1170px) {
+  /* Center bubble on spine (no transform — library bounce uses transform here) */
+  .pd-vtl-wrap .vertical-timeline--two-columns .pd-timeline-node-icon.vertical-timeline-element-icon {
+    left: 50% !important;
+    width: 44px !important;
+    margin-left: -22px !important;
+  }
+}
+
+/* Top of content column, edge toward the spine */
+.pd-timeline-date-near-node {
+  display: block;
+  margin: 0 0 12px;
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgba(232, 238, 252, 0.78);
+  letter-spacing: 0.02em;
+}
+
+@media only screen and (max-width: 1169px) {
+  .pd-timeline-date-near-node {
+    text-align: left;
+  }
+}
+
+@media only screen and (min-width: 1170px) {
+  .pd-vtl-wrap .vertical-timeline--two-columns .vertical-timeline-element--left .pd-timeline-date-near-node {
+    text-align: right;
+  }
+
+  .pd-vtl-wrap .vertical-timeline--two-columns .vertical-timeline-element--right .pd-timeline-date-near-node {
+    text-align: left;
+  }
+}
+
+.pd-timeline-node-bubble {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #37456d;
+  border: 2px solid rgba(232, 238, 252, 0.3);
+  box-shadow: 0 2px 8px rgba(5, 10, 24, 0.25);
+}
+
+.pd-timeline-node-bubble--branch {
+  background: #4a3d6b;
+  border-color: rgba(200, 180, 255, 0.35);
+}
+
+@media only screen and (min-width: 1170px) {
+  .pd-vtl-wrap .vertical-timeline--two-columns .pd-timeline-node-bubble {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+.pd-vtl-wrap .vertical-timeline-element-content-arrow {
+  border-right-color: rgba(232, 238, 252, 0.07) !important;
+}
+
+.pd-timeline-dot-svg,
+.pd-timeline-fork-svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.pd-timeline-fork-svg {
+  color: rgba(232, 238, 252, 0.9);
+}
+
+/* ── Collapsed fork / conflict row ── */
+.pd-fork-collapsed {
+  text-align: left;
+}
+
+.pd-fork-collapsed-preview {
+  margin-bottom: 14px;
+}
+
+.pd-fork-collapsed-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pd-fork-collapsed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.pd-fork-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(200, 180, 255, 0.35);
+  background: rgba(120, 90, 200, 0.2);
+  color: #ede9ff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.pd-fork-expand-btn:hover {
+  background: rgba(120, 90, 200, 0.32);
+  border-color: rgba(200, 180, 255, 0.5);
+}
+
+.pd-fork-source-link {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(158, 197, 255, 0.95);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pd-fork-source-link:hover {
+  color: #cfe0ff;
+}
+
+.pd-fork-chevron {
+  transition: transform 0.2s ease;
+}
+
+.pd-fork-chevron--open {
+  transform: rotate(180deg);
+}
+
+/* Expanded toolbar */
+.pd-fork-expanded-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 12px;
+}
+
+.pd-fork-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(232, 238, 252, 0.15);
+  background: rgba(232, 238, 252, 0.06);
+  color: rgba(232, 238, 252, 0.75);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.pd-fork-collapse-btn:hover {
+  background: rgba(232, 238, 252, 0.1);
+  color: #e8eefc;
+}
+
+/* Per-card exact source (expanded fork) */
+.timeline-fork-card-source {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(232, 238, 252, 0.1);
+}
+
+.timeline-fork-card-source-heading {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(158, 197, 255, 0.75);
+  margin-bottom: 8px;
+}
+
+.timeline-fork-card-source-link {
+  display: inline-block;
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #9ec5ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(158, 197, 255, 0.45);
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.timeline-fork-card-source-link:hover {
+  color: #cfe0ff;
+  text-decoration-color: rgba(207, 224, 255, 0.65);
+}
+
+.timeline-fork-card-source-dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(100px, 34%) 1fr;
+  gap: 6px 12px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.timeline-fork-card-source-dl dt {
+  margin: 0;
+  color: rgba(232, 238, 252, 0.38);
+  font-weight: 500;
+}
+
+.timeline-fork-card-source-dl dd {
+  margin: 0;
+  color: rgba(232, 238, 252, 0.88);
+  word-break: break-word;
+}
+
+.timeline-fork-card-source-dl a {
+  color: #9ec5ff;
+}
+
+.timeline-fork-card-source-dl code {
+  font-size: 0.76rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.28);
+  word-break: break-all;
+}
+
+.timeline-fork-card-source-row {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.timeline-fork-card-source-key {
+  font-size: 0.72rem;
+  color: rgba(232, 238, 252, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.timeline-fork-card-source-code {
+  display: block;
+  font-size: 0.76rem;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.28);
+  word-break: break-all;
+}
+
+.timeline-fork-card-source-fallback {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(232, 238, 252, 0.45);
+}

@@ -82,6 +82,7 @@ export function normalizeContextItemFromApi(row) {
   }
   if (row.ragDocId || row.rag_doc_id) item.ragDocId = row.ragDocId || row.rag_doc_id
   if (row.sourceUrl) item.sourceUrl = row.sourceUrl
+  if (row.ragIngestError) item.ragIngestError = row.ragIngestError
   if (row.imageSrc) item.imageSrc = row.imageSrc
   if (row.videoSrc) item.videoSrc = row.videoSrc
   if (row.audioSrc) item.audioSrc = row.audioSrc

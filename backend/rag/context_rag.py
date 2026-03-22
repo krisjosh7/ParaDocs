@@ -3,10 +3,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from context_catalog import context_library_paths, set_rag_doc_id_for_context
+from context_catalog import (
+    context_library_paths,
+    set_rag_doc_id_for_context,
+    set_rag_ingest_failed,
+)
 from elevenlabs_stt import transcribe_audio_for_ingest
 from groq_llm import describe_image_for_ingest
 from schemas import StoreDocumentRequest
+from storage import ensure_case_dirs
 
 from .document_extract import (
     extract_text_from_docx,
@@ -128,12 +133,23 @@ def _pdf_docx_body_block(caption: str, extracted: str, label: str) -> str:
     return "\n".join(parts) + "\n"
 
 
+def _format_ingest_error(exc: Exception) -> str:
+    """Human-readable message for catalog + logs (includes FastAPI HTTPException detail)."""
+    detail = getattr(exc, "detail", None)
+    if isinstance(detail, str) and detail.strip():
+        return detail.strip()
+    return f"{type(exc).__name__}: {exc}"
+
+
 def background_ingest_context_to_rag(case_id: str, row: dict[str, Any]) -> None:
-    """Runs after HTTP response; failures are logged only."""
+    """Runs after HTTP response; failures are logged and stored on the catalog row."""
+    ctx_id = str(row.get("id") or "")
     try:
         raw = build_raw_text_for_context_rag(case_id, row)
         if not raw.strip():
             return
+        # RAG artifacts live under cases/{case_id}/documents|structured|metadata (see storage.ensure_case_dirs).
+        ensure_case_dirs(case_id)
         payload = StoreDocumentRequest(
             case_id=case_id,
             raw_text=raw,
@@ -141,8 +157,9 @@ def background_ingest_context_to_rag(case_id: str, row: dict[str, Any]) -> None:
             timestamp=None,
         )
         result = store_document_for_rag(payload)
-        ctx_id = str(row.get("id") or "")
         if ctx_id and result.doc_id:
             set_rag_doc_id_for_context(case_id, ctx_id, result.doc_id)
-    except Exception:
+    except Exception as exc:
         logger.exception("Background RAG ingest failed for context %s", row.get("id"))
+        if ctx_id:
+            set_rag_ingest_failed(case_id, ctx_id, _format_ingest_error(exc))
