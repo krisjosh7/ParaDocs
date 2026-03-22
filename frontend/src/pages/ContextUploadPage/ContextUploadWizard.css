@@ -35,7 +35,8 @@
   padding: 24px 26px 20px;
   border-radius: 16px;
   background: #f6f3ea;
-  border: 1px solid #e6dcc4;
+  border: 1px solid #d4c09a;
+  border-top: 3px solid #b8943e;
   box-shadow: 0 22px 56px rgba(5, 10, 24, 0.38);
   flex-shrink: 0;
 }
@@ -44,6 +45,7 @@
   margin: 0 0 16px;
   font-size: 1.35rem;
   font-weight: 700;
+  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
   color: #1c2744;
 }
 
@@ -97,9 +99,9 @@
 
 .context-upload-input:focus,
 .context-upload-textarea:focus {
-  border-color: rgba(32, 86, 211, 0.45);
+  border-color: rgba(184, 148, 62, 0.55);
   background: #fff;
-  box-shadow: 0 0 0 2px rgba(32, 86, 211, 0.12);
+  box-shadow: 0 0 0 2px rgba(184, 148, 62, 0.18);
 }
 
 .context-upload-wizard-actions {
@@ -141,13 +143,13 @@
 }
 
 .context-upload-btn--primary {
-  border: 1px solid #2056d3;
-  background: #2056d3;
+  border: 1px solid #b8943e;
+  background: #b8943e;
   color: #fff;
 }
 
 .context-upload-btn--primary:hover:not(:disabled) {
-  background: #1a4ab8;
+  background: #a07e30;
   transform: translateY(-1px);
 }
 
@@ -219,7 +221,7 @@
   object-fit: contain;
   border-radius: 10px;
   display: block;
-  background: #10182d;
+  background: #0f1520;
 }
 
 .context-upload-file-preview-audio {
@@ -272,7 +274,7 @@
   margin: 0 0 16px;
   padding: 26px 18px;
   border-radius: 14px;
-  border: 2px dashed rgba(32, 86, 211, 0.35);
+  border: 2px dashed rgba(184, 148, 62, 0.35);
   background: linear-gradient(180deg, #f9f8f3 0%, #f4f1e8 100%);
   text-align: center;
   cursor: pointer;
@@ -280,19 +282,19 @@
 }
 
 .context-upload-dropzone:hover {
-  border-color: rgba(32, 86, 211, 0.6);
+  border-color: rgba(184, 148, 62, 0.6);
   background: #f9f6ee;
   transform: translateY(-1px);
 }
 
 .context-upload-dropzone:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 3px rgba(32, 86, 211, 0.18);
+  box-shadow: 0 0 0 3px rgba(184, 148, 62, 0.18);
 }
 
 .context-upload-dropzone--dragging {
-  border-color: #2056d3;
-  background: #eef3ff;
+  border-color: #b8943e;
+  background: #f5f0e8;
 }
 
 .context-upload-dropzone-title {

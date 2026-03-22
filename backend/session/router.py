@@ -1,52 +1,73 @@
 import asyncio
+import logging
 import os
 import tempfile
 import uuid
 from typing import Optional
 
 import httpx
-import whisper
+from keybert import KeyBERT
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from research.courtlistener import search_opinions
 from rag.router import store_document_for_rag
+from rag.embedding import get_embedder
 from schemas import StoreDocumentRequest
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/session", tags=["session"])
 
 RAG_BASE = os.environ.get("RAG_BASE_URL", "http://localhost:8000")
+_ELEVENLABS_STT_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 
 # Don't bother querying for one-word answers like "Yes" or "Okay"
 MIN_TEXT_LENGTH = 20
 
-# Spoken filler words that add no signal to a legal search query
-_FILLERS = {
-    "um", "uh", "like", "you know", "i mean", "so", "well", "actually",
-    "basically", "right", "okay", "yeah", "yes", "no", "good", "great",
-    "sure", "i", "my", "we", "they", "it", "the", "a", "an", "and",
-    "but", "or", "just", "really", "very", "kind of", "sort of",
-}
+# KeyBERT — reuses the same sentence-transformers model as the RAG vector store.
+# Lazily initialized on first search to avoid slowing startup.
+_kw_model: KeyBERT | None = None
 
 
-def _clean_query(text: str) -> str:
-    """Strip filler words and short tokens to leave substantive legal terms."""
-    words = text.lower().split()
-    kept = [w.strip(".,?!;:\"'") for w in words if w.strip(".,?!;:\"'") not in _FILLERS]
-    meaningful = [w for w in kept if len(w) > 2]
-    return " ".join(meaningful)
+def _get_kw_model() -> KeyBERT:
+    global _kw_model
+    if _kw_model is None:
+        _kw_model = KeyBERT(model=get_embedder())
+    return _kw_model
 
 
-def _build_search_query(text: str, context: list[str]) -> str:
+def _extract_search_queries(text: str, context: list[str]) -> list[str]:
     """
-    Combine the last context lines with the current text, clean filler words.
-    Using context gives CourtListener more signal than a single spoken sentence.
+    Extract keyphrases from transcript text using KeyBERT (embedding-based).
+    Returns a list of individual search queries (one per keyphrase).
     """
     combined = " ".join(context[-2:] + [text])
-    return _clean_query(combined)
+    if len(combined.strip()) < MIN_TEXT_LENGTH:
+        return []
 
-# Load once at startup — takes ~5s for "base", stays in memory for the session
-_whisper_model = whisper.load_model("base")
+    print(f"[KeyBERT] input ({len(combined)} chars): {combined[:300]}")
+
+    kw = _get_kw_model()
+    keywords = kw.extract_keywords(
+        combined,
+        keyphrase_ngram_range=(2, 3),
+        stop_words="english",
+        top_n=3,
+        use_mmr=True,
+        diversity=0.5,
+    )
+    # Only keep high-confidence phrases
+    phrases = [phrase for phrase, score in keywords if score >= 0.4]
+
+    if not phrases:
+        return []
+
+    print(f"[KeyBERT] queries: {phrases}")
+    return phrases
+
+def _elevenlabs_api_key() -> str:
+    return os.environ.get("ELEVENLABS_API_KEY", "").strip()
 
 
 # ---------------------------------------------------------------------------
@@ -77,9 +98,12 @@ class SessionQueryResponse(BaseModel):
 
 class SaveToContextRequest(BaseModel):
     case_id: str
-    label: str       # case name / title
+    label: str = ""    # case name / title
     excerpt: str = ""  # snippet text
     url: str = ""      # source URL (e.g. CourtListener link)
+    # Legacy fields — accept but ignore (old frontend may still send these)
+    raw_text: str = ""
+    source: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -89,30 +113,28 @@ class SaveToContextRequest(BaseModel):
 @router.post("/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
     """
-    Accepts a raw audio blob from the browser's MediaRecorder, runs Whisper,
-    and returns the transcribed text.
-
-    model.transcribe() is CPU-bound so it runs in a thread pool to avoid
-    blocking the async event loop.
+    Accepts a raw audio blob from the browser's MediaRecorder,
+    sends it to ElevenLabs Scribe for transcription, and returns the text.
     """
-    suffix = ".webm"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
-        f.write(await audio.read())
-        tmp_path = f.name
+    key = _elevenlabs_api_key()
+    if not key:
+        raise HTTPException(status_code=500, detail="ELEVENLABS_API_KEY is not set")
 
-    try:
-        result = await asyncio.get_event_loop().run_in_executor(
-            None, _whisper_model.transcribe, tmp_path
+    audio_bytes = await audio.read()
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            _ELEVENLABS_STT_URL,
+            headers={"xi-api-key": key},
+            files={"file": ("audio.webm", audio_bytes, "audio/webm")},
+            data={"model_id": "scribe_v1", "language_code": "en"},
         )
-    finally:
-        os.unlink(tmp_path)
 
-    text = result["text"].strip()
+    if resp.status_code != 200:
+        print(f"[ElevenLabs STT] error {resp.status_code}: {resp.text[:200]}")
+        return {"text": ""}
 
-    # Filter out Whisper's noise/silence placeholders
-    if text.lower() in {"", "[blank_audio]", "[music]", "[silence]"}:
-        text = ""
-
+    text = resp.json().get("text", "").strip()
     return {"text": text}
 
 
@@ -162,11 +184,15 @@ async def save_to_context(req: SaveToContextRequest):
     logger = logging.getLogger(__name__)
 
     # Build a rich text block so the stored document is self-contained
-    parts = [req.label]
-    if req.url:
-        parts.append(f"Source: {req.url}")
-    if req.excerpt:
-        parts.append(f"\n{req.excerpt}")
+    label = req.label or req.source or "Saved source"
+    excerpt = req.excerpt or req.raw_text or ""
+    url = req.url or ""
+
+    parts = [label]
+    if url:
+        parts.append(f"Source: {url}")
+    if excerpt:
+        parts.append(f"\n{excerpt}")
     raw_text = "\n".join(parts)
 
     logger.info("save-to-context: case_id=%s, raw_text length=%d", req.case_id, len(raw_text))
@@ -222,24 +248,30 @@ async def _query_rag(case_id: str, text: str, line_index: int) -> list[SurfacedI
 
 
 async def _query_courtlistener(text: str, context: list[str], line_index: int) -> list[SurfacedItem]:
-    query = _build_search_query(text, context)
-    if not query:
+    queries = _extract_search_queries(text, context)
+    if not queries:
         return []
 
-    try:
-        cases = await search_opinions(query, page_size=2)
-    except Exception:
-        return []
+    # Run each keyphrase as a separate search in parallel
+    tasks = [search_opinions(q, page_size=1) for q in queries]
+    batches = await asyncio.gather(*tasks, return_exceptions=True)
 
+    seen_ids: set[str] = set()
     results = []
-    for case in cases[:2]:
-        citation = case.get("citation") or case.get("date_filed", "")
-        label = case["case_name"]
-        if citation:
-            label += f" ({citation})"
-        results.append(SurfacedItem(
-            id=case["id"],
-            after_line=line_index,
+    for batch in batches:
+        if isinstance(batch, Exception):
+            continue
+        for case in batch[:1]:  # top 1 result per query
+            if case["id"] in seen_ids:
+                continue
+            seen_ids.add(case["id"])
+            citation = case.get("citation") or case.get("date_filed", "")
+            label = case["case_name"]
+            if citation:
+                label += f" ({citation})"
+            results.append(SurfacedItem(
+                id=case["id"],
+                after_line=line_index,
             type="caselaw",
             status="hit",
             label=label,
