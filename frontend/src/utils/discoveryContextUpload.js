@@ -1,4 +1,10 @@
-/** Deep-link to Discovery: catalog row id or discovered:<rag_doc_id>. */
+/**
+ * Deep-link to Discovery (Context Library) with an optional focused item.
+ *
+ * Query `focus`:
+ * - Catalog preview: `focus=<context_id>` (e.g. ctx-uuid) — opens the same modal as clicking the card.
+ * - Ingest-only row: `focus=discovered:<rag_doc_id>` — scrolls/highlights that card (no catalog modal).
+ */
 
 function ragDocIdFromSource(sc, docId) {
   if (docId != null && String(docId).trim()) return String(docId).trim()
