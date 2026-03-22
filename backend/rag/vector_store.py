@@ -33,6 +33,30 @@ def _chroma_metadata(metadata: dict) -> dict:
     return out
 
 
+def delete_chunks_for_case_id(case_id: str) -> None:
+    """Remove all vector rows tagged with this case_id (best-effort)."""
+    cid = (case_id or "").strip()
+    if not cid:
+        return
+    collection = get_collection()
+    try:
+        collection.delete(where={"case_id": cid})
+    except Exception:
+        pass
+
+
+def delete_chunks_for_doc_id(doc_id: str) -> None:
+    """Remove all vector rows for a document so re-ingest does not leave orphans or duplicates."""
+    if not doc_id.strip():
+        return
+    collection = get_collection()
+    try:
+        collection.delete(where={"doc_id": doc_id})
+    except Exception:
+        # Older Chroma / empty collection: best-effort
+        pass
+
+
 def upsert_text_records(records: list[dict]) -> int:
     if not records:
         return 0

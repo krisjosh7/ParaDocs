@@ -467,9 +467,10 @@ function ContextPreview({ item, compact, inModal }) {
 }
 
 export default function ContextUploadPage({ onBack, caseId }) {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [contextItems, setContextItems] = useState([])
   const [expandedId, setExpandedId] = useState(null)
+  const prevCaseIdRef = useRef(caseId)
   const [pageIndex, setPageIndex] = useState(0)
   const [fabOpen, setFabOpen] = useState(false)
   const fabRef = useRef(null)
@@ -531,10 +532,40 @@ export default function ContextUploadPage({ onBack, caseId }) {
     refreshContexts()
   }, [refreshContexts])
 
+  const syncFocusInUrl = useCallback(
+    (id, replaceNavigation) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          const v = id != null ? String(id).trim() : ''
+          if (v) next.set('focus', v)
+          else next.delete('focus')
+          return next
+        },
+        { replace: replaceNavigation },
+      )
+    },
+    [setSearchParams],
+  )
+
+  const openCatalogPreview = useCallback(
+    (id) => {
+      const v = id != null ? String(id).trim() : ''
+      if (!v) return
+      setExpandedId(v)
+      syncFocusInUrl(v, false)
+    },
+    [syncFocusInUrl],
+  )
+
   useEffect(() => {
+    if (prevCaseIdRef.current === caseId) return
+    prevCaseIdRef.current = caseId
     setSelectedIds([])
     setSelectionMode(false)
-  }, [caseId])
+    setExpandedId(null)
+    syncFocusInUrl(null, true)
+  }, [caseId, syncFocusInUrl])
 
   const toggleSelectionMode = useCallback(() => {
     setSelectionMode((prev) => {
@@ -583,7 +614,10 @@ export default function ContextUploadPage({ onBack, caseId }) {
       } else if (failed.length > 0) {
         setListError(`Some items could not be deleted (${failed.length} failed).`)
       }
-      if (expandedId && ids.includes(expandedId)) setExpandedId(null)
+      if (expandedId && ids.includes(expandedId)) {
+        setExpandedId(null)
+        syncFocusInUrl(null, true)
+      }
       setSelectedIds([])
       await refreshContexts()
     } catch (e) {
@@ -591,11 +625,13 @@ export default function ContextUploadPage({ onBack, caseId }) {
     } finally {
       setBulkDeleting(false)
     }
-  }, [bulkDeleting, caseId, expandedId, refreshContexts, selectedIds])
+  }, [bulkDeleting, caseId, expandedId, refreshContexts, selectedIds, syncFocusInUrl])
 
   const libraryEntries = useMemo(() => {
     // Catalog items linked to a RAG doc via rag_doc_id — filter those out
     // of discoveredDocs so the same upload doesn't show up twice.
+    // Also exclude discovered docs whose source is "upload" — those are
+    // RAG artifacts created by context library uploads, not independent documents.
     const linkedRagIds = new Set(
       contextItems.map((item) => item.ragDocId).filter(Boolean),
     )
@@ -641,6 +677,14 @@ export default function ContextUploadPage({ onBack, caseId }) {
 
     return () => window.clearTimeout(tid)
   }, [searchParams, caseId, listLoading, discoveredLoading, libraryEntries])
+
+  /** Close catalog modal when `focus` is cleared (e.g. browser Back) without remounting. */
+  useEffect(() => {
+    if (listLoading || discoveredLoading) return
+    const focus = (searchParams.get('focus') ?? '').trim()
+    if (focus.startsWith('discovered:')) return
+    if (!focus && expandedId) setExpandedId(null)
+  }, [searchParams, listLoading, discoveredLoading, expandedId])
 
   const allLibraryIds = useMemo(
     () =>
@@ -820,7 +864,10 @@ export default function ContextUploadPage({ onBack, caseId }) {
     [caseId, refreshContexts],
   )
 
-  const closeModal = useCallback(() => setExpandedId(null), [])
+  const closeModal = useCallback(() => {
+    setExpandedId(null)
+    syncFocusInUrl(null, true)
+  }, [syncFocusInUrl])
 
   useEffect(() => {
     if (!expandedId) return
@@ -1114,13 +1161,13 @@ export default function ContextUploadPage({ onBack, caseId }) {
                               className="context-card-hit"
                               onClick={() => {
                                 if (selectionMode) toggleSelectId(item.id)
-                                else setExpandedId(item.id)
+                                else openCatalogPreview(item.id)
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault()
                                   if (selectionMode) toggleSelectId(item.id)
-                                  else setExpandedId(item.id)
+                                  else openCatalogPreview(item.id)
                                 }
                               }}
                               aria-expanded={expandedId === item.id}

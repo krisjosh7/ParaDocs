@@ -604,8 +604,21 @@
   color: #b8d8ff;
 }
 
-.timeline-simple-card--weak .timeline-simple-card-source-fallback {
-  color: rgba(232, 238, 252, 0.38);
+.timeline-source-discovery-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(232, 238, 252, 0.2);
+  background: rgba(232, 238, 252, 0.1);
+  color: #e8eefc;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: background-color 140ms ease;
 }
 
 .timeline-fork-card-body {

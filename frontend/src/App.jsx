@@ -1,128 +1,46 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Routes, Route, useNavigate } from 'react-router-dom'
 import FloatingActionButton from './components/FloatingActionButton.jsx'
 import MainContent from './components/MainContent.jsx'
 import CasePage from './pages/CasePage/CasePage.jsx'
 
-const INITIAL_CASES = [
-  {
-    id: 'case-a',
-    title: 'Case A',
-    summary: 'Brief description of the case and key legal context.',
-    tasks: [
-      { id: 't1', label: 'Collect initial documents from client', status: 'done' },
-      { id: 't2', label: 'Review opposing counsel filings', status: 'done' },
-      { id: 't3', label: 'Draft summary of key facts', status: 'done' },
-      { id: 't4', label: 'Prepare deposition outline', status: 'in_progress' },
-      { id: 't5', label: 'Research relevant case law precedents', status: 'in_progress' },
-      { id: 't6', label: 'Schedule expert witness consultation', status: 'upcoming' },
-      { id: 't7', label: 'File motion for discovery extension', status: 'upcoming' },
-    ],
-    events: [
-      { id: 'e1', date: '2026-03-18', title: 'Case opened', description: 'Initial case file created and assigned.' },
-      { id: 'e2', date: '2026-03-19', title: 'Documents received', description: 'Client uploaded 42 documents for review.' },
-      { id: 'e3', date: '2026-03-19', title: 'Filings reviewed', description: 'Opposing counsel filings analyzed and summarized.' },
-      { id: 'e4', date: '2026-03-20', title: 'Fact summary drafted', description: 'Key facts extracted and organized into timeline.' },
-      { id: 'e5', date: '2026-03-20', title: 'Deposition prep started', description: 'Agent began drafting deposition question outline.' },
-    ],
-  },
-  {
-    id: 'case-b',
-    title: 'Case B',
-    summary: 'Another summary with relevant parties and timeline notes.',
-    tasks: [
-      { id: 't1', label: 'Identify all involved parties', status: 'done' },
-      { id: 't2', label: 'Map party relationships and roles', status: 'done' },
-      { id: 't3', label: 'Compile communication records', status: 'in_progress' },
-      { id: 't4', label: 'Analyze financial transaction history', status: 'upcoming' },
-      { id: 't5', label: 'Prepare party summary report', status: 'upcoming' },
-    ],
-    events: [
-      { id: 'e1', date: '2026-03-15', title: 'Case opened', description: 'Multi-party case initiated with initial review.' },
-      { id: 'e2', date: '2026-03-16', title: 'Parties identified', description: 'All relevant parties cataloged with contact info.' },
-      { id: 'e3', date: '2026-03-18', title: 'Relationship map complete', description: 'Organizational chart of party connections finalized.' },
-      { id: 'e4', date: '2026-03-20', title: 'Records compilation in progress', description: 'Agent pulling communication logs from three sources.' },
-    ],
-  },
-  {
-    id: 'case-c',
-    title: 'Case C',
-    summary: 'Preliminary review of documents and open research leads.',
-    tasks: [
-      { id: 't1', label: 'Catalog uploaded documents by type', status: 'done' },
-      { id: 't2', label: 'Flag documents requiring further review', status: 'in_progress' },
-      { id: 't3', label: 'Cross-reference with public records', status: 'in_progress' },
-      { id: 't4', label: 'Identify gaps in documentation', status: 'upcoming' },
-      { id: 't5', label: 'Generate research lead summaries', status: 'upcoming' },
-      { id: 't6', label: 'Produce preliminary findings report', status: 'upcoming' },
-    ],
-    events: [
-      { id: 'e1', date: '2026-03-17', title: 'Case opened', description: 'Document-heavy case created for review.' },
-      { id: 'e2', date: '2026-03-18', title: 'Document catalog complete', description: '87 documents sorted into 6 categories.' },
-      { id: 'e3', date: '2026-03-20', title: 'Review underway', description: 'Agent flagging priority items and cross-referencing records.' },
-    ],
-  },
-  {
-    id: 'case-d',
-    title: 'Case D',
-    summary: 'Status update and next actions to support preparation.',
-    tasks: [
-      { id: 't1', label: 'Draft status update memo', status: 'done' },
-      { id: 't2', label: 'Outline next steps and deadlines', status: 'done' },
-      { id: 't3', label: 'Coordinate with co-counsel on strategy', status: 'done' },
-      { id: 't4', label: 'Prepare pre-trial checklist', status: 'done' },
-      { id: 't5', label: 'Review and finalize witness list', status: 'in_progress' },
-    ],
-    events: [
-      { id: 'e1', date: '2026-03-10', title: 'Case opened', description: 'Trial preparation case initiated.' },
-      { id: 'e2', date: '2026-03-12', title: 'Status memo delivered', description: 'Comprehensive update sent to lead counsel.' },
-      { id: 'e3', date: '2026-03-14', title: 'Strategy session scheduled', description: 'Co-counsel alignment call confirmed for March 15.' },
-      { id: 'e4', date: '2026-03-15', title: 'Pre-trial checklist ready', description: 'All preparation items documented with owners assigned.' },
-      { id: 'e5', date: '2026-03-19', title: 'Witness list review started', description: 'Agent verifying availability and relevance of each witness.' },
-    ],
-  },
-  {
-    id: 'case-e',
-    title: 'Case E',
-    summary: 'Early findings from uploaded files and reference material.',
-    tasks: [
-      { id: 't1', label: 'Process uploaded reference files', status: 'done' },
-      { id: 't2', label: 'Extract key data points from reports', status: 'in_progress' },
-      { id: 't3', label: 'Compare findings against benchmarks', status: 'upcoming' },
-      { id: 't4', label: 'Draft early findings memo', status: 'upcoming' },
-    ],
-    events: [
-      { id: 'e1', date: '2026-03-19', title: 'Case opened', description: 'Research-focused case created from uploaded materials.' },
-      { id: 'e2', date: '2026-03-19', title: 'Files processed', description: '23 reference documents parsed and indexed.' },
-      { id: 'e3', date: '2026-03-20', title: 'Data extraction in progress', description: 'Agent pulling structured data from financial reports.' },
-    ],
-  },
-  {
-    id: 'case-f',
-    title: 'Case F',
-    summary: 'Concise overview of scope, constraints, and priorities.',
-    tasks: [
-      { id: 't1', label: 'Define case scope and boundaries', status: 'done' },
-      { id: 't2', label: 'Document known constraints', status: 'done' },
-      { id: 't3', label: 'Prioritize action items by impact', status: 'in_progress' },
-      { id: 't4', label: 'Create resource allocation plan', status: 'upcoming' },
-      { id: 't5', label: 'Set milestone checkpoints', status: 'upcoming' },
-      { id: 't6', label: 'Build risk assessment matrix', status: 'upcoming' },
-    ],
-    events: [
-      { id: 'e1', date: '2026-03-16', title: 'Case opened', description: 'Strategic planning case initiated.' },
-      { id: 'e2', date: '2026-03-17', title: 'Scope defined', description: 'Case boundaries and deliverables documented.' },
-      { id: 'e3', date: '2026-03-18', title: 'Constraints documented', description: 'Budget, timeline, and access limitations recorded.' },
-      { id: 'e4', date: '2026-03-20', title: 'Prioritization underway', description: 'Agent ranking action items by estimated impact.' },
-    ],
-  },
-]
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
 
-function HomePage({ cases, setCases }) {
+function normalizeCaseFromApi(raw) {
+  const summary = raw.summary ?? raw.description ?? ''
+  return {
+    id: raw.id,
+    title: raw.title ?? '',
+    description: typeof summary === 'string' ? summary : '',
+    tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
+    events: Array.isArray(raw.events) ? raw.events : [],
+  }
+}
+
+function HomePage({ cases, setCases, casesLoading, casesError }) {
   const navigate = useNavigate()
   const [currentView, setCurrentView] = useState('home')
   const [searchQuery, setSearchQuery] = useState('')
   const [pendingDelete, setPendingDelete] = useState(null)
+  const [newCaseOpen, setNewCaseOpen] = useState(false)
+  const [newCaseTitle, setNewCaseTitle] = useState('')
+  const [newCaseDescription, setNewCaseDescription] = useState('')
+  const [newCaseSubmitting, setNewCaseSubmitting] = useState(false)
+  const [chatCaseId, setChatCaseId] = useState('')
+  const chatCaseDefaultedRef = useRef(false)
+
+  useEffect(() => {
+    if (cases.length === 0 || chatCaseDefaultedRef.current) return
+    setChatCaseId(cases[0].id)
+    chatCaseDefaultedRef.current = true
+  }, [cases])
+
+  useEffect(() => {
+    if (cases.length === 0) return
+    if (chatCaseId && !cases.some((c) => c.id === chatCaseId)) {
+      setChatCaseId(cases[0].id)
+    }
+  }, [cases, chatCaseId])
 
   const q = searchQuery.trim().toLowerCase()
   const filteredCases = useMemo(
@@ -139,20 +57,94 @@ function HomePage({ cases, setCases }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [pendingDelete])
 
-  function handleCardClick(e, id) {
-    if (e.target.closest('.case-card-actions')) return
-    navigate('/case/' + id)
-  }
+  useEffect(() => {
+    if (!newCaseOpen) return
+    function onKey(e) {
+      if (e.key === 'Escape') setNewCaseOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [newCaseOpen])
 
-  function confirmDeleteCase() {
+  async function confirmDeleteCase() {
     if (!pendingDelete) return
-    const id = pendingDelete.id
-    setCases((c) => c.filter((x) => x.id !== id))
-    setPendingDelete(null)
+    const { id } = pendingDelete
+    try {
+      const res = await fetch(`${API_BASE}/cases/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (res.ok || res.status === 404) {
+        setCases((c) => c.filter((x) => x.id !== id))
+        setPendingDelete(null)
+        return
+      }
+      let msg = `Could not delete case (${res.status})`
+      try {
+        const body = await res.json()
+        if (body?.detail) {
+          msg = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
+        }
+      } catch {
+        /* ignore non-JSON body */
+      }
+      alert(msg)
+    } catch (e) {
+      console.error(e)
+      alert('Could not reach the server to delete this case.')
+    }
   }
 
-  function handleNewCasePlaceholder() {
-    console.log('New Case placeholder action')
+  function openNewCaseModal() {
+    setNewCaseTitle('')
+    setNewCaseDescription('')
+    setNewCaseOpen(true)
+  }
+
+  async function submitNewCase(e) {
+    e.preventDefault()
+    const title = newCaseTitle.trim()
+    if (!title || newCaseSubmitting) return
+    setNewCaseSubmitting(true)
+    try {
+      const res = await fetch(`${API_BASE}/cases`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, summary: newCaseDescription.trim() }),
+      })
+      if (!res.ok) {
+        let msg = `Could not create case (${res.status})`
+        try {
+          const body = await res.json()
+          if (body?.detail) {
+            msg = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
+          }
+        } catch {
+          /* ignore */
+        }
+        alert(msg)
+        return
+      }
+      const body = await res.json()
+      const created = body?.case
+      if (!created?.id) {
+        alert('Invalid response from server.')
+        return
+      }
+      setCases((prev) => [...prev, normalizeCaseFromApi(created)].sort((a, b) =>
+        a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }),
+      ))
+      setNewCaseOpen(false)
+      setNewCaseTitle('')
+      setNewCaseDescription('')
+    } catch (err) {
+      console.error(err)
+      alert('Could not reach the server to create this case.')
+    } finally {
+      setNewCaseSubmitting(false)
+    }
+  }
+
+  function closeNewCaseModal() {
+    if (newCaseSubmitting) return
+    setNewCaseOpen(false)
   }
 
   return (
@@ -163,20 +155,37 @@ function HomePage({ cases, setCases }) {
         onSearchChange={setSearchQuery}
         onGoHome={() => setCurrentView('home')}
         onShowChat={() => setCurrentView('chat')}
+        cases={cases}
+        chatCaseId={chatCaseId}
+        onChatCaseIdChange={setChatCaseId}
+        apiBase={API_BASE}
       >
-        <section id="cases-grid" className="cases-grid" aria-live="polite">
-          {filteredCases.length === 0 ? (
-            <p className="cases-empty" role="status">
-              No cases match &ldquo;{searchQuery.trim()}&rdquo;.
-            </p>
-          ) : (
-            filteredCases.map((item) => (
-                <article
-                  key={item.id}
-                  data-case-id={item.id}
-                  className="case-card"
-                  onClick={(e) => handleCardClick(e, item.id)}
-                >
+        <div className="cases-gallery-wrap">
+          <section id="cases-grid" className="cases-gallery" aria-live="polite">
+            {casesLoading ? (
+              <div className="cases-gallery-empty cases-gallery-empty--wide" role="status">
+                <p className="cases-gallery-empty-title">Loading cases…</p>
+                <p className="cases-gallery-empty-hint">Fetching your workspaces from the server.</p>
+              </div>
+            ) : casesError ? (
+              <div className="cases-gallery-empty cases-gallery-empty--wide" role="alert">
+                <p className="cases-gallery-empty-title cases-gallery-empty-title--error">Couldn&apos;t load cases</p>
+                <p className="cases-gallery-empty-hint">{casesError}</p>
+              </div>
+            ) : filteredCases.length === 0 ? (
+              <div className="cases-gallery-empty cases-gallery-empty--wide" role="status">
+                <p className="cases-gallery-empty-title">
+                  {q ? 'No matching cases' : 'No cases yet'}
+                </p>
+                <p className="cases-gallery-empty-hint">
+                  {q
+                    ? `Nothing matches “${searchQuery.trim()}”. Try another search.`
+                    : 'Use the + button in the corner to create your first case.'}
+                </p>
+              </div>
+            ) : (
+              filteredCases.map((item) => (
+                <article key={item.id} data-case-id={item.id} className="case-library-card">
                   <div className="case-card-actions" onPointerDown={(e) => e.stopPropagation()}>
                     <button
                       type="button"
@@ -190,12 +199,36 @@ function HomePage({ cases, setCases }) {
                       ×
                     </button>
                   </div>
-                  <h2>{item.title}</h2>
-                  <p>{item.summary}</p>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="case-card-hit"
+                    onClick={() => navigate('/case/' + item.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        navigate('/case/' + item.id)
+                      }
+                    }}
+                    aria-label={`Open case ${item.title}`}
+                  >
+                    <div className="cases-card-body">
+                      <h2 className="cases-card-heading">{item.title}</h2>
+                      <div className="cases-card-rule" role="presentation" />
+                      <p className="cases-card-description">
+                        {item.description?.trim() ? (
+                          item.description.trim()
+                        ) : (
+                          <span className="cases-card-description--placeholder">No description yet.</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
                 </article>
               ))
-          )}
-        </section>
+            )}
+          </section>
+        </div>
       </MainContent>
       {pendingDelete && (
         <div
@@ -227,20 +260,143 @@ function HomePage({ cases, setCases }) {
           </div>
         </div>
       )}
-      <FloatingActionButton onNewCase={handleNewCasePlaceholder} />
+      {newCaseOpen && (
+        <div className="new-case-modal-backdrop" role="presentation" onClick={closeNewCaseModal}>
+          <div
+            className="new-case-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-case-title"
+            aria-describedby="new-case-desc"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="new-case-modal__header">
+              <div className="new-case-modal__title-block">
+                <h2 id="new-case-title" className="new-case-modal__title">
+                  New case
+                </h2>
+                <p id="new-case-desc" className="new-case-modal__subtitle">
+                  Add a title and optional description. You can open the case next to add discovery and documents.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="new-case-modal__close"
+                aria-label="Close"
+                onClick={closeNewCaseModal}
+                disabled={newCaseSubmitting}
+              >
+                ×
+              </button>
+            </div>
+            <form className="new-case-form" onSubmit={submitNewCase}>
+              <div className="new-case-field">
+                <label className="new-case-field__label" htmlFor="new-case-title-input">
+                  Case title
+                </label>
+                <input
+                  id="new-case-title-input"
+                  type="text"
+                  className="new-case-field__input"
+                  placeholder="e.g. Smith v. Acme Corp"
+                  value={newCaseTitle}
+                  onChange={(e) => setNewCaseTitle(e.target.value)}
+                  autoComplete="off"
+                  required
+                  maxLength={500}
+                  disabled={newCaseSubmitting}
+                />
+              </div>
+              <div className="new-case-field">
+                <label className="new-case-field__label" htmlFor="new-case-description-input">
+                  Description <span className="new-case-field__optional">(optional)</span>
+                </label>
+                <textarea
+                  id="new-case-description-input"
+                  className="new-case-field__input new-case-field__input--multiline"
+                  placeholder="Short summary or notes for your reference…"
+                  value={newCaseDescription}
+                  onChange={(e) => setNewCaseDescription(e.target.value)}
+                  rows={4}
+                  maxLength={50000}
+                  disabled={newCaseSubmitting}
+                />
+              </div>
+              <div className="new-case-actions">
+                <button
+                  type="button"
+                  className="new-case-btn new-case-btn--secondary"
+                  onClick={closeNewCaseModal}
+                  disabled={newCaseSubmitting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="new-case-btn new-case-btn--primary" disabled={newCaseSubmitting}>
+                  {newCaseSubmitting ? 'Creating…' : 'Create case'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {currentView === 'home' && <FloatingActionButton onNewCase={openNewCaseModal} />}
     </div>
   )
 }
 
 export default function App() {
-  const [cases, setCases] = useState(INITIAL_CASES)
+  const [cases, setCases] = useState([])
+  const [casesLoading, setCasesLoading] = useState(true)
+  const [casesError, setCasesError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setCasesLoading(true)
+      setCasesError(null)
+      try {
+        const res = await fetch(`${API_BASE}/cases`)
+        if (!res.ok) {
+          throw new Error(`Could not load cases (HTTP ${res.status})`)
+        }
+        const data = await res.json()
+        const list = Array.isArray(data) ? data : []
+        if (!cancelled) {
+          setCases(list.map(normalizeCaseFromApi))
+        }
+      } catch (e) {
+        console.error(e)
+        if (!cancelled) {
+          setCasesError(e instanceof Error ? e.message : 'Failed to load cases.')
+          setCases([])
+        }
+      } finally {
+        if (!cancelled) setCasesLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="app-shell">
       <Routes>
-        <Route path="/" element={<HomePage cases={cases} setCases={setCases} />} />
+        <Route
+          path="/"
+          element={
+            <HomePage
+              cases={cases}
+              setCases={setCases}
+              casesLoading={casesLoading}
+              casesError={casesError}
+            />
+          }
+        />
         <Route path="/case/:caseId/*" element={<CasePage cases={cases} />} />
       </Routes>
     </div>
   )
 }
+

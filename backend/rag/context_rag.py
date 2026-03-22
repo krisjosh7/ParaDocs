@@ -12,6 +12,18 @@ from context_catalog import (
 from storage import ensure_case_dirs
 
 from .document_extract import extract_text_from_docx, extract_text_from_pdf
+from elevenlabs_stt import transcribe_audio_for_ingest
+from groq_llm import describe_image_for_ingest
+from schemas import StoreDocumentRequest
+from storage import ensure_case_dirs
+
+from .document_extract import (
+    extract_text_from_docx,
+    extract_text_from_pdf,
+    is_audio_suffix,
+    is_image_suffix,
+)
+from .router import store_document_for_rag
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +74,16 @@ def build_raw_text_for_context_rag(case_id: str, row: dict[str, Any]) -> str:
         block = _pdf_docx_body_block(caption, extracted, "DOCX")
         return header + block
 
+    if is_image_suffix(suffix):
+        visual = describe_image_for_ingest(fp, caption=caption)
+        block = _image_rag_body_block(caption, visual)
+        return header + block
+
+    if is_audio_suffix(suffix):
+        transcript = transcribe_audio_for_ingest(fp)
+        block = _audio_rag_body_block(caption, transcript)
+        return header + block
+
     return (
         header
         + f"Type: {ctype}\n"
@@ -69,6 +91,42 @@ def build_raw_text_for_context_rag(case_id: str, row: dict[str, Any]) -> str:
         + "(Binary or non-text format — no full-text extraction in this pass. "
         "Title and caption above are still indexed.)"
     )
+
+
+def _audio_rag_body_block(caption: str, transcript: str) -> str:
+    """Combine optional caption with ElevenLabs transcript for embedding."""
+    parts: list[str] = []
+    if caption:
+        parts.append(
+            "User-provided caption (for retrieval; aligns with the transcript below):\n"
+            f"{caption}\n",
+        )
+    parts.append("--- Transcript (ElevenLabs speech-to-text) ---\n")
+    if transcript.strip():
+        parts.append(transcript.strip())
+    else:
+        parts.append(
+            "(No transcript was returned—set ELEVENLABS_API_KEY, check plan/access, or verify file format.)",
+        )
+    return "\n".join(parts) + "\n"
+
+
+def _image_rag_body_block(caption: str, visual_description: str) -> str:
+    """Combine optional caption with vision-model text for embedding (caption is also in header)."""
+    parts: list[str] = []
+    if caption:
+        parts.append(
+            "User-provided caption (for retrieval; cross-check with the visual description below):\n"
+            f"{caption}\n",
+        )
+    parts.append("--- Visual description (from image analysis) ---\n")
+    if visual_description.strip():
+        parts.append(visual_description.strip())
+    else:
+        parts.append(
+            "(No visual description was generated—check GROQ_API_KEY, model access, or image size/format.)",
+        )
+    return "\n".join(parts) + "\n"
 
 
 def _pdf_docx_body_block(caption: str, extracted: str, label: str) -> str:

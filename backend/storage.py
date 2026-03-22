@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -136,6 +137,65 @@ def list_discovered_case_documents(case_id: str) -> list[dict]:
 
     out.sort(key=_ts, reverse=True)
     return out
+
+
+_CASE_ID_FOLDER_RE = re.compile(r"^[\w.-]{1,256}$")
+
+
+def _folder_name_is_case_id(name: str) -> bool:
+    n = (name or "").strip()
+    return bool(n and ".." not in n and _CASE_ID_FOLDER_RE.match(n))
+
+
+def list_case_summaries() -> list[dict[str, str]]:
+    """Scan CASES_ROOT for subdirs with a valid case.json (id, title, summary)."""
+    root = default_cases_root()
+    root.mkdir(parents=True, exist_ok=True)
+    out: list[dict[str, str]] = []
+    for p in sorted(root.iterdir()):
+        if not p.is_dir() or not _folder_name_is_case_id(p.name):
+            continue
+        jf = p / "case.json"
+        if not jf.is_file():
+            continue
+        try:
+            data = json.loads(jf.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        cid = str(data.get("id", "") or p.name).strip() or p.name
+        out.append(
+            {
+                "id": cid,
+                "title": str(data.get("title", "") or cid),
+                "summary": str(data.get("summary", "") or ""),
+            }
+        )
+    return sorted(out, key=lambda x: (x["title"].lower(), x["id"]))
+
+
+def create_case_record(title: str, summary: str) -> dict[str, str]:
+    """Create CASES_ROOT/{uuid}/case.json. Returns id, title, summary."""
+    case_id = str(uuid4())
+    base = default_cases_root() / case_id
+    base.mkdir(parents=True, exist_ok=False)
+    payload = {
+        "id": case_id,
+        "title": title.strip(),
+        "summary": (summary or "").strip(),
+    }
+    (base / "case.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return payload
+
+
+def delete_case_tree(case_id: str) -> bool:
+    """Remove the entire case directory under CASES_ROOT. Returns True if it existed."""
+    base = default_cases_root() / case_id
+    if not base.is_dir():
+        return False
+    shutil.rmtree(base, ignore_errors=True)
+    return True
 
 
 def delete_stored_document_files(case_id: str, doc_id: str) -> None:
