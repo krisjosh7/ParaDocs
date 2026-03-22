@@ -75,6 +75,11 @@ def build_raw_text_for_context_rag(case_id: str, row: dict[str, Any]) -> str:
         block = _image_rag_body_block(caption, visual)
         return header + block
 
+    if is_audio_suffix(suffix):
+        transcript = transcribe_audio_for_ingest(fp)
+        block = _audio_rag_body_block(caption, transcript)
+        return header + block
+
     return (
         header
         + f"Type: {ctype}\n"

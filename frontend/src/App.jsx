@@ -267,17 +267,38 @@ function HomePage({ cases, setCases, casesLoading, casesError }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="new-case-title"
+            aria-describedby="new-case-desc"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="new-case-title" className="new-case-modal-heading">
-              New case
-            </h2>
+            <div className="new-case-modal__header">
+              <div className="new-case-modal__title-block">
+                <h2 id="new-case-title" className="new-case-modal__title">
+                  New case
+                </h2>
+                <p id="new-case-desc" className="new-case-modal__subtitle">
+                  Add a title and optional description. You can open the case next to add discovery and documents.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="new-case-modal__close"
+                aria-label="Close"
+                onClick={closeNewCaseModal}
+                disabled={newCaseSubmitting}
+              >
+                ×
+              </button>
+            </div>
             <form className="new-case-form" onSubmit={submitNewCase}>
-              <label className="new-case-label">
-                Case title
+              <div className="new-case-field">
+                <label className="new-case-field__label" htmlFor="new-case-title-input">
+                  Case title
+                </label>
                 <input
+                  id="new-case-title-input"
                   type="text"
-                  className="new-case-input"
+                  className="new-case-field__input"
+                  placeholder="e.g. Smith v. Acme Corp"
                   value={newCaseTitle}
                   onChange={(e) => setNewCaseTitle(e.target.value)}
                   autoComplete="off"
@@ -285,18 +306,22 @@ function HomePage({ cases, setCases, casesLoading, casesError }) {
                   maxLength={500}
                   disabled={newCaseSubmitting}
                 />
-              </label>
-              <label className="new-case-label">
-                Description
+              </div>
+              <div className="new-case-field">
+                <label className="new-case-field__label" htmlFor="new-case-description-input">
+                  Description <span className="new-case-field__optional">(optional)</span>
+                </label>
                 <textarea
-                  className="new-case-textarea"
+                  id="new-case-description-input"
+                  className="new-case-field__input new-case-field__input--multiline"
+                  placeholder="Short summary or notes for your reference…"
                   value={newCaseDescription}
                   onChange={(e) => setNewCaseDescription(e.target.value)}
                   rows={4}
                   maxLength={50000}
                   disabled={newCaseSubmitting}
                 />
-              </label>
+              </div>
               <div className="new-case-actions">
                 <button
                   type="button"
@@ -307,14 +332,14 @@ function HomePage({ cases, setCases, casesLoading, casesError }) {
                   Cancel
                 </button>
                 <button type="submit" className="new-case-btn new-case-btn--primary" disabled={newCaseSubmitting}>
-                  {newCaseSubmitting ? 'Creating…' : 'Confirm'}
+                  {newCaseSubmitting ? 'Creating…' : 'Create case'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-      <FloatingActionButton onNewCase={openNewCaseModal} />
+      {currentView === 'home' && <FloatingActionButton onNewCase={openNewCaseModal} />}
     </div>
   )
 }
