@@ -172,10 +172,12 @@ async def save_to_context(req: SaveToContextRequest):
     logger.info("save-to-context: case_id=%s, raw_text length=%d", req.case_id, len(raw_text))
 
     try:
+        url_clean = (req.url or "").strip()
         result = store_document_for_rag(StoreDocumentRequest(
             case_id=req.case_id,
             raw_text=raw_text,
             source="web",
+            source_url=url_clean if url_clean else None,
         ))
         logger.info("save-to-context: stored doc_id=%s, chunks=%d", result.doc_id, result.num_chunks)
     except HTTPException:

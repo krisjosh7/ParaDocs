@@ -24,6 +24,8 @@ class StoreDocumentRequest(BaseModel):
     raw_text: str
     source: SourceLiteral = "upload"
     timestamp: str | datetime | None = None
+    # When set (e.g. live session save), persisted on disk in metadata for context library links.
+    source_url: str | None = None
 
     @field_validator("timestamp", mode="before")
     @classmethod
@@ -43,6 +45,7 @@ class Document(BaseModel):
     raw_text: str
     source: SourceLiteral = "upload"
     timestamp: str  # ISO-8601
+    source_url: str | None = None
 
     @field_validator("timestamp", mode="before")
     @classmethod

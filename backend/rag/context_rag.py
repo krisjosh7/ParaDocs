@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_raw_text_for_context_rag(case_id: str, row: dict[str, Any]) -> str:
-    """Produce text to send through the same /store pipeline for Research + semantic RAG."""
+    """Produce text to send through the same /store pipeline for context library RAG ingest."""
     cid = str(row.get("id", ""))
     title = str(row.get("title", "Untitled")).strip()
     caption = str(row.get("caption", "") or "").strip()

@@ -97,6 +97,7 @@ def filter_items_by_query(items: list[dict], q: str | None) -> list[dict]:
         caption = str(it.get("caption", "")).lower()
         fname = str(it.get("file_name", "") or "").lower()
         body = str(it.get("text_full", "") or "").lower()
-        if needle in title or needle in caption or needle in fname or needle in body:
+        src_url = str(it.get("source_url", "") or "").lower()
+        if needle in title or needle in caption or needle in fname or needle in body or needle in src_url:
             out.append(it)
     return out

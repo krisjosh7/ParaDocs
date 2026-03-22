@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { AudioUploadFlow, FileUploadFlow, TextUploadFlow } from './ContextUploadFlow'
+import { AudioUploadFlow, FileUploadFlow, ResearchUploadFlow, TextUploadFlow } from './ContextUploadFlow'
 import DocxPreview from './DocxPreview'
 import {
   createFileContext,
+  createResearchContext,
   createTextContext,
   deleteContextItem,
+  deleteDiscoveredDocument,
+  discoveredDocDisplayTitle,
   fetchContextsForCase,
+  fetchDiscoveredDocumentsForCase,
+  formatDiscoveredTimestamp,
 } from './contextUploadHelpers'
 import './ContextUploadPage.css'
 import './ContextDownloadActions.css'
@@ -18,6 +23,17 @@ const TYPE_LABELS = {
   pdf: 'Document',
   document: 'Document',
   text: 'Text',
+  research: 'Research',
+}
+
+/** RAG uses source "upload" for library-ingested files — show normal types, never "upload". */
+function discoveredSourcePill(meta, row) {
+  const src = String(meta?.source || '').toLowerCase()
+  const url = (row?.sourceUrl || row?.source_url || '').trim()
+  const isWeb = src === 'web' || (Boolean(url) && src !== 'upload')
+  if (isWeb) return { variant: 'web', text: 'web' }
+  if (src && TYPE_LABELS[src]) return { variant: 'catalog', text: TYPE_LABELS[src] }
+  return { variant: 'catalog', text: TYPE_LABELS.document }
 }
 
 const PAGE_SIZE = 12
@@ -82,6 +98,37 @@ function IconClose() {
   )
 }
 
+/** Site favicon as thumbnail (same-origin not required); falls back to link emoji */
+function WebSourcePreview({ url }) {
+  const [failed, setFailed] = useState(false)
+  const src = useMemo(() => {
+    if (!url?.trim()) return ''
+    try {
+      const u = new URL(url)
+      return `https://www.google.com/s2/favicons?sz=128&domain=${encodeURIComponent(u.origin)}`
+    } catch {
+      return ''
+    }
+  }, [url])
+  if (!src || failed) {
+    return (
+      <span className="context-saved-web-preview-fallback" aria-hidden>
+        🔗
+      </span>
+    )
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      className="context-saved-web-preview-img"
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 /** Must match CSS breakpoints: 3 cols default, 2 cols <=900px, 1 col <=560px */
 function getGalleryRowsForPage(itemCount) {
   const count = Math.max(1, itemCount)
@@ -99,6 +146,18 @@ function getDownloadInfo(item) {
   if (item.type === 'audio' && item.audioSrc) return { href: item.audioSrc, fileName: item.fileName || `${item.title}.webm` }
   if (item.type === 'document' && item.documentSrc) return { href: item.documentSrc, fileName: item.fileName || `${item.title}` }
   return null
+}
+
+function researchLinkLabel(url) {
+  if (!url || typeof url !== 'string') return ''
+  try {
+    const u = new URL(url)
+    const path = u.pathname && u.pathname !== '/' ? u.pathname : ''
+    const tail = path.length > 48 ? `${path.slice(0, 47)}…` : path
+    return `${u.hostname}${tail}`
+  } catch {
+    return url.length > 56 ? `${url.slice(0, 55)}…` : url
+  }
 }
 
 function formatVideoTime(seconds) {
@@ -293,6 +352,21 @@ function ModalVideoPlayer({ src, title }) {
 }
 
 function ContextPreview({ item, compact, inModal }) {
+  if (item.type === 'research' && item.sourceUrl) {
+    const label = researchLinkLabel(item.sourceUrl)
+    return (
+      <div className={`context-card-preview context-card-preview--research ${compact ? 'context-card-preview--compact' : ''}`}>
+        <div className="context-research-preview-inner">
+          <span className="context-research-preview-icon" aria-hidden>
+            🔗
+          </span>
+          <span className="context-research-preview-host" title={item.sourceUrl}>
+            {label}
+          </span>
+        </div>
+      </div>
+    )
+  }
   if (item.type === 'image') {
     return (
       <div className={`context-card-preview context-card-preview--image ${compact ? 'context-card-preview--compact' : ''}`}>
@@ -384,11 +458,15 @@ export default function ContextUploadPage({ onBack, caseId }) {
   const fabRef = useRef(null)
 
   const [textUploadOpen, setTextUploadOpen] = useState(false)
+  const [researchUploadOpen, setResearchUploadOpen] = useState(false)
   const [audioUploadOpen, setAudioUploadOpen] = useState(false)
   const [fileUploadOpen, setFileUploadOpen] = useState(false)
 
   const [listLoading, setListLoading] = useState(false)
   const [listError, setListError] = useState('')
+  const [discoveredDocs, setDiscoveredDocs] = useState([])
+  const [discoveredLoading, setDiscoveredLoading] = useState(false)
+  const [discoveredError, setDiscoveredError] = useState('')
   const [selectedIds, setSelectedIds] = useState([])
   const [selectionMode, setSelectionMode] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -398,18 +476,36 @@ export default function ContextUploadPage({ onBack, caseId }) {
   const refreshContexts = useCallback(async () => {
     if (!caseId?.trim()) {
       setContextItems([])
+      setDiscoveredDocs([])
       return
     }
+    const cid = caseId.trim()
     setListLoading(true)
+    setDiscoveredLoading(true)
     setListError('')
+    setDiscoveredError('')
     try {
-      const items = await fetchContextsForCase(caseId.trim())
-      setContextItems(items)
-    } catch (e) {
-      setListError(e instanceof Error ? e.message : 'Failed to load contexts')
-      setContextItems([])
+      const [ctxResult, discResult] = await Promise.allSettled([
+        fetchContextsForCase(cid),
+        fetchDiscoveredDocumentsForCase(cid),
+      ])
+      if (ctxResult.status === 'fulfilled') {
+        setContextItems(ctxResult.value)
+      } else {
+        const e = ctxResult.reason
+        setListError(e instanceof Error ? e.message : 'Failed to load contexts')
+        setContextItems([])
+      }
+      if (discResult.status === 'fulfilled') {
+        setDiscoveredDocs(discResult.value)
+      } else {
+        const e = discResult.reason
+        setDiscoveredError(e instanceof Error ? e.message : 'Failed to load saved session metadata')
+        setDiscoveredDocs([])
+      }
     } finally {
       setListLoading(false)
+      setDiscoveredLoading(false)
     }
   }, [caseId])
 
@@ -442,15 +538,27 @@ export default function ContextUploadPage({ onBack, caseId }) {
     if (!caseId?.trim() || selectedIds.length === 0 || bulkDeleting) return
     const n = selectedIds.length
     const ok = window.confirm(
-      `Delete ${n} selected context${n === 1 ? '' : 's'}? This cannot be undone.`,
+      `Delete ${n} selected item${n === 1 ? '' : 's'}? This cannot be undone.`,
     )
     if (!ok) return
     const cid = caseId.trim()
     const ids = [...selectedIds]
+    const discoveredIds = ids.filter((selId) => selId.startsWith('discovered:'))
+    const catalogIds = ids.filter((selId) => !selId.startsWith('discovered:'))
     setBulkDeleting(true)
     setListError('')
     try {
-      const results = await Promise.allSettled(ids.map((itemId) => deleteContextItem(cid, itemId)))
+      // Delete discovered (RAG) rows before catalog rows: a catalog item can share rag_doc_id
+      // and its DELETE removes metadata/chunks first; parallel discovered DELETE would 404.
+      const discResults = await Promise.allSettled(
+        discoveredIds.map((selId) =>
+          deleteDiscoveredDocument(cid, selId.slice('discovered:'.length)),
+        ),
+      )
+      const catResults = await Promise.allSettled(
+        catalogIds.map((selId) => deleteContextItem(cid, selId)),
+      )
+      const results = [...discResults, ...catResults]
       const failed = results.filter((r) => r.status === 'rejected')
       if (failed.length === results.length) {
         setListError('Could not delete selected items.')
@@ -467,12 +575,38 @@ export default function ContextUploadPage({ onBack, caseId }) {
     }
   }, [bulkDeleting, caseId, expandedId, refreshContexts, selectedIds])
 
-  const totalPages = Math.max(1, Math.ceil(contextItems.length / PAGE_SIZE))
+  const libraryEntries = useMemo(() => {
+    const web = discoveredDocs.map((row) => ({ kind: 'web', row }))
+    const catalog = contextItems.map((item) => ({ kind: 'catalog', item }))
+    return [...web, ...catalog]
+  }, [discoveredDocs, contextItems])
+
+  const allLibraryIds = useMemo(
+    () =>
+      libraryEntries.map((entry) =>
+        entry.kind === 'web' ? `discovered:${entry.row.doc_id}` : entry.item.id,
+      ),
+    [libraryEntries],
+  )
+
+  const allLibrarySelected =
+    allLibraryIds.length > 0 && allLibraryIds.every((id) => selectedSet.has(id))
+
+  const handleSelectAllLibrary = useCallback(() => {
+    setSelectedIds((prev) => {
+      const prevSet = new Set(prev)
+      const every = allLibraryIds.length > 0 && allLibraryIds.every((id) => prevSet.has(id))
+      if (every) return []
+      return [...allLibraryIds]
+    })
+  }, [allLibraryIds])
+
+  const totalPages = Math.max(1, Math.ceil(libraryEntries.length / PAGE_SIZE))
   const boundedPage = Math.min(pageIndex, totalPages - 1)
   const pageSlice = useMemo(() => {
     const start = boundedPage * PAGE_SIZE
-    return contextItems.slice(start, start + PAGE_SIZE)
-  }, [contextItems, boundedPage])
+    return libraryEntries.slice(start, start + PAGE_SIZE)
+  }, [libraryEntries, boundedPage])
   const galleryRows = useMemo(() => getGalleryRowsForPage(pageSlice.length), [pageSlice.length])
 
   const expanded = useMemo(
@@ -484,13 +618,24 @@ export default function ContextUploadPage({ onBack, caseId }) {
   const startTextUpload = useCallback(() => {
     setFabOpen(false)
     setTextUploadOpen(true)
+    setResearchUploadOpen(false)
     setAudioUploadOpen(false)
+    setFileUploadOpen(false)
+  }, [])
+
+  const startResearchUpload = useCallback(() => {
+    setFabOpen(false)
+    setResearchUploadOpen(true)
+    setTextUploadOpen(false)
+    setAudioUploadOpen(false)
+    setFileUploadOpen(false)
   }, [])
 
   const startAudioUpload = useCallback(() => {
     setFabOpen(false)
     setAudioUploadOpen(true)
     setTextUploadOpen(false)
+    setResearchUploadOpen(false)
     setFileUploadOpen(false)
   }, [])
 
@@ -498,6 +643,7 @@ export default function ContextUploadPage({ onBack, caseId }) {
     setFabOpen(false)
     setFileUploadOpen(true)
     setTextUploadOpen(false)
+    setResearchUploadOpen(false)
     setAudioUploadOpen(false)
   }, [])
 
@@ -510,6 +656,27 @@ export default function ContextUploadPage({ onBack, caseId }) {
           title: newItem.title,
           caption: newItem.caption,
           textFull: newItem.textFull,
+        })
+        await refreshContexts()
+        setPageIndex(0)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Save failed'
+        setListError(msg)
+        throw e
+      }
+    },
+    [caseId, refreshContexts],
+  )
+
+  const handleResearchAdd = useCallback(
+    async (newItem) => {
+      if (!caseId?.trim()) return
+      setListError('')
+      try {
+        await createResearchContext(caseId.trim(), {
+          title: newItem.title,
+          caption: newItem.caption,
+          sourceUrl: newItem.sourceUrl,
         })
         await refreshContexts()
         setPageIndex(0)
@@ -608,11 +775,16 @@ export default function ContextUploadPage({ onBack, caseId }) {
     return () => document.removeEventListener('mousedown', onDocDown)
   }, [fabOpen])
 
-  /** True while any add-context wizard is open (text today; extend for audio/file). */
-  const inUploadFlow = textUploadOpen || audioUploadOpen || fileUploadOpen
+  /** True while any add-context wizard is open */
+  const inUploadFlow = textUploadOpen || researchUploadOpen || audioUploadOpen || fileUploadOpen
 
+  const hasLibraryContent = contextItems.length > 0 || discoveredDocs.length > 0
   const showEmptyLibrary =
-    Boolean(caseId?.trim()) && !listLoading && !listError && contextItems.length === 0
+    Boolean(caseId?.trim()) &&
+    !listError &&
+    !listLoading &&
+    !discoveredLoading &&
+    !hasLibraryContent
 
   return (
     <>
@@ -647,6 +819,15 @@ export default function ContextUploadPage({ onBack, caseId }) {
                             {selectedIds.length}
                           </span>
                         ) : null}
+                        <button
+                          type="button"
+                          className="context-header-text-btn"
+                          onClick={handleSelectAllLibrary}
+                          disabled={bulkDeleting || allLibraryIds.length === 0}
+                          aria-label={allLibrarySelected ? 'Deselect all contexts' : 'Select all contexts'}
+                        >
+                          {allLibrarySelected ? 'Clear' : 'Select all'}
+                        </button>
                         <button
                           type="button"
                           className="context-header-icon-btn context-header-icon-btn--danger"
@@ -686,7 +867,14 @@ export default function ContextUploadPage({ onBack, caseId }) {
                 {listError}
               </p>
             ) : null}
-            {listLoading ? <p className="context-page-list-loading">Loading contexts…</p> : null}
+            {discoveredError ? (
+              <p className="context-page-list-error context-page-list-error--subtle" role="alert">
+                {discoveredError}
+              </p>
+            ) : null}
+            {listLoading || discoveredLoading ? (
+              <p className="context-page-list-loading">Loading library…</p>
+            ) : null}
           </div>
 
           <div
@@ -705,106 +893,206 @@ export default function ContextUploadPage({ onBack, caseId }) {
                   </div>
                 ) : (
                   <>
-                <div
-                  className="context-gallery"
-                  aria-live="polite"
-                  style={{
-                    '--context-gallery-rows-wide': galleryRows.wide,
-                    '--context-gallery-rows-medium': galleryRows.medium,
-                    '--context-gallery-rows-narrow': galleryRows.narrow,
-                  }}
-                >
-                  {pageSlice.map((item) => (
-                    <article
-                      key={item.id}
-                      className={[
-                        'context-card',
-                        selectionMode ? 'context-card--selection-mode' : '',
-                        selectedSet.has(item.id) ? 'context-card--selected' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      data-context-id={item.id}
+                    <div
+                      className="context-gallery"
+                      aria-live="polite"
+                      aria-label="Context library"
+                      style={{
+                        '--context-gallery-rows-wide': galleryRows.wide,
+                        '--context-gallery-rows-medium': galleryRows.medium,
+                        '--context-gallery-rows-narrow': galleryRows.narrow,
+                      }}
                     >
-                      {selectionMode ? (
-                        <label
-                          className="context-card-select"
-                          onClick={(e) => e.stopPropagation()}
-                          onPointerDown={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            className="context-card-select-input"
-                            checked={selectedSet.has(item.id)}
-                            onChange={() => toggleSelectId(item.id)}
-                            aria-label={`Select ${item.title}`}
-                          />
-                        </label>
-                      ) : null}
-                      {/* div+role="button": <iframe> inside <button> is invalid HTML and breaks PDF/embed behavior */}
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        className="context-card-hit"
-                        onClick={() => {
-                          if (selectionMode) toggleSelectId(item.id)
-                          else setExpandedId(item.id)
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            if (selectionMode) toggleSelectId(item.id)
-                            else setExpandedId(item.id)
-                          }
-                        }}
-                        aria-expanded={expandedId === item.id}
-                        aria-label={
-                          selectionMode ? `Select ${item.title}` : `Expand ${item.title}`
+                      {pageSlice.map((entry) => {
+                        if (entry.kind === 'web') {
+                          const row = entry.row
+                          const meta = row.metadata ?? {}
+                          const when = formatDiscoveredTimestamp(meta.timestamp)
+                          const url = (row.sourceUrl || row.source_url || '').trim()
+                          const title = discoveredDocDisplayTitle(row)
+                          const discoSelectId = `discovered:${row.doc_id}`
+                          const pill = discoveredSourcePill(meta, row)
+                          const hitBody = (
+                            <>
+                              <div className="context-card-preview context-card-preview--compact context-card-preview--saved-web">
+                                <WebSourcePreview url={url} />
+                              </div>
+                              <div className="context-card-footer">
+                                <div className="context-card-meta-row">
+                                  <span
+                                    className={
+                                      pill.variant === 'web'
+                                        ? 'context-type-pill context-type-pill--discovery'
+                                        : 'context-type-pill'
+                                    }
+                                  >
+                                    {pill.text}
+                                  </span>
+                                  {when ? <span className="context-added-label">{when}</span> : null}
+                                </div>
+                                <h3 className="context-card-title" title={title}>
+                                  {title}
+                                </h3>
+                              </div>
+                            </>
+                          )
+                          return (
+                            <article
+                              key={`web-${row.doc_id}`}
+                              className={[
+                                'context-card',
+                                selectionMode ? 'context-card--selection-mode' : '',
+                                selectedSet.has(discoSelectId) ? 'context-card--selected' : '',
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
+                              data-context-id={discoSelectId}
+                            >
+                              {selectionMode ? (
+                                <label
+                                  className="context-card-select"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="context-card-select-input"
+                                    checked={selectedSet.has(discoSelectId)}
+                                    onChange={() => toggleSelectId(discoSelectId)}
+                                    aria-label={`Select ${title}`}
+                                  />
+                                </label>
+                              ) : null}
+                              {selectionMode ? (
+                                <div
+                                  role="button"
+                                  tabIndex={0}
+                                  className="context-card-hit"
+                                  onClick={() => toggleSelectId(discoSelectId)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault()
+                                      toggleSelectId(discoSelectId)
+                                    }
+                                  }}
+                                  aria-label={`Select ${title}`}
+                                >
+                                  {hitBody}
+                                </div>
+                              ) : url ? (
+                                <a
+                                  className="context-card-hit context-card-hit--discovered-link"
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  aria-label={`Open source: ${title}`}
+                                  title={url}
+                                >
+                                  {hitBody}
+                                </a>
+                              ) : (
+                                <div
+                                  className="context-card-hit context-card-hit--no-url"
+                                  aria-label={title}
+                                >
+                                  {hitBody}
+                                </div>
+                              )}
+                            </article>
+                          )
                         }
-                      >
-                        <ContextPreview item={item} compact />
-                        <div className="context-card-footer">
-                          <div className="context-card-meta-row">
-                            <span className="context-type-pill">{TYPE_LABELS[item.type] ?? item.type}</span>
-                            <span className="context-added-label">{item.addedLabel}</span>
-                          </div>
-                          <h3 className="context-card-title" title={item.title}>
-                            {item.title}
-                          </h3>
-                          {item.caption?.trim() ? (
-                            <p className="context-card-caption" title={item.caption.trim()}>
-                              {item.caption.trim()}
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                        const item = entry.item
+                        return (
+                          <article
+                            key={item.id}
+                            className={[
+                              'context-card',
+                              selectionMode ? 'context-card--selection-mode' : '',
+                              selectedSet.has(item.id) ? 'context-card--selected' : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
+                            data-context-id={item.id}
+                          >
+                            {selectionMode ? (
+                              <label
+                                className="context-card-select"
+                                onClick={(e) => e.stopPropagation()}
+                                onPointerDown={(e) => e.stopPropagation()}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="context-card-select-input"
+                                  checked={selectedSet.has(item.id)}
+                                  onChange={() => toggleSelectId(item.id)}
+                                  aria-label={`Select ${item.title}`}
+                                />
+                              </label>
+                            ) : null}
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              className="context-card-hit"
+                              onClick={() => {
+                                if (selectionMode) toggleSelectId(item.id)
+                                else setExpandedId(item.id)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  if (selectionMode) toggleSelectId(item.id)
+                                  else setExpandedId(item.id)
+                                }
+                              }}
+                              aria-expanded={expandedId === item.id}
+                              aria-label={
+                                selectionMode ? `Select ${item.title}` : `Expand ${item.title}`
+                              }
+                            >
+                              <ContextPreview item={item} compact />
+                              <div className="context-card-footer">
+                                <div className="context-card-meta-row">
+                                  <span className="context-type-pill">{TYPE_LABELS[item.type] ?? item.type}</span>
+                                  <span className="context-added-label">{item.addedLabel}</span>
+                                </div>
+                                <h3 className="context-card-title" title={item.title}>
+                                  {item.title}
+                                </h3>
+                                {item.caption?.trim() ? (
+                                  <p className="context-card-caption" title={item.caption.trim()}>
+                                    {item.caption.trim()}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
+                          </article>
+                        )
+                      })}
+                    </div>
 
-              {totalPages > 1 ? (
-                <nav className="context-pagination" aria-label="Context pages">
-                  <button
-                    type="button"
-                    className="context-pagination-btn"
-                    disabled={boundedPage <= 0}
-                    onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
-                  >
-                    Previous
-                  </button>
-                  <span className="context-pagination-status">
-                    Page {boundedPage + 1} of {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    className="context-pagination-btn"
-                    disabled={boundedPage >= totalPages - 1}
-                    onClick={() => setPageIndex((p) => Math.min(totalPages - 1, p + 1))}
-                  >
-                    Next
-                  </button>
-                </nav>
-              ) : null}
+                    {totalPages > 1 ? (
+                      <nav className="context-pagination" aria-label="Context pages">
+                        <button
+                          type="button"
+                          className="context-pagination-btn"
+                          disabled={boundedPage <= 0}
+                          onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+                        >
+                          Previous
+                        </button>
+                        <span className="context-pagination-status">
+                          Page {boundedPage + 1} of {totalPages}
+                        </span>
+                        <button
+                          type="button"
+                          className="context-pagination-btn"
+                          disabled={boundedPage >= totalPages - 1}
+                          onClick={() => setPageIndex((p) => Math.min(totalPages - 1, p + 1))}
+                        >
+                          Next
+                        </button>
+                      </nav>
+                    ) : null}
                   </>
                 )}
               </div>
@@ -814,6 +1102,11 @@ export default function ContextUploadPage({ onBack, caseId }) {
               open={textUploadOpen}
               onClose={() => setTextUploadOpen(false)}
               onAddItem={handleTextAdd}
+            />
+            <ResearchUploadFlow
+              open={researchUploadOpen}
+              onClose={() => setResearchUploadOpen(false)}
+              onAddItem={handleResearchAdd}
             />
             <AudioUploadFlow
               open={audioUploadOpen}
@@ -850,6 +1143,19 @@ export default function ContextUploadPage({ onBack, caseId }) {
               <button type="button" className="context-fab-action" aria-label="Add text note" onClick={startTextUpload}>
                 <span className="context-fab-icon context-fab-icon--text" aria-hidden>
                   T
+                </span>
+              </button>
+              <button
+                type="button"
+                className="context-fab-action"
+                aria-label="Add research link"
+                onClick={startResearchUpload}
+              >
+                <span className="context-fab-icon" aria-hidden title="Research link">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" strokeLinecap="round" />
+                    <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" strokeLinecap="round" />
+                  </svg>
                 </span>
               </button>
               <button type="button" className="context-fab-action" aria-label="Upload file" onClick={startFileUpload}>
@@ -900,7 +1206,26 @@ export default function ContextUploadPage({ onBack, caseId }) {
               </button>
             </header>
             <div className="context-modal-body">
-              {expanded.type === 'text' ? (
+              {expanded.type === 'research' && expanded.sourceUrl ? (
+                <>
+                  <ContextPreview item={expanded} compact={false} />
+                  <p className="context-research-url-line" title={expanded.sourceUrl}>
+                    <a href={expanded.sourceUrl} target="_blank" rel="noopener noreferrer" className="context-research-url-text">
+                      {expanded.sourceUrl}
+                    </a>
+                  </p>
+                  <p className="context-research-open-wrap">
+                    <a
+                      className="context-research-open-btn"
+                      href={expanded.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Open source page ↗
+                    </a>
+                  </p>
+                </>
+              ) : expanded.type === 'text' ? (
                 <pre className="context-text-full">{expanded.textFull ?? expanded.textPreview}</pre>
               ) : expanded.type === 'document' && expanded.docSubtype === 'docx' ? (
                 <ContextPreview item={expanded} compact={false} inModal />

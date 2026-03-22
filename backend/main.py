@@ -17,6 +17,7 @@ from fastapi import Body, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from routes_contexts import router as contexts_router
+from routes_discovered import router as discovered_router
 from rag.router import router as rag_router
 
 # Routers — each subgraph registers its own router here
@@ -39,6 +40,7 @@ app.add_middleware(
 app.mount("/media", StaticFiles(directory=SESSION_MEDIA_DIR), name="media")
 app.include_router(rag_router)
 app.include_router(contexts_router)
+app.include_router(discovered_router)
 
 
 def cleanup_session_media() -> None:

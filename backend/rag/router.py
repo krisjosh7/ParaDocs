@@ -39,12 +39,14 @@ def _timestamp_iso(ts: str | datetime | None) -> str:
 def _build_document_for_store(payload: StoreDocumentRequest) -> Document:
     doc_id = generate_doc_id()
     ts = _timestamp_iso(payload.timestamp)
+    url = (payload.source_url or "").strip() or None
     return Document(
         case_id=payload.case_id,
         doc_id=doc_id,
         raw_text=payload.raw_text,
         source=payload.source,
         timestamp=ts,
+        source_url=url,
     )
 
 
@@ -200,20 +202,19 @@ def ingest_endpoint(payload: IngestRequest) -> IngestResponse:
     total_chunks = len(raw_records) + len(structured_records)
 
     write_structured(document.case_id, document.doc_id, structured)
-    write_metadata(
-        document.case_id,
-        document.doc_id,
-        {
-            "case_id": document.case_id,
-            "doc_id": document.doc_id,
-            "source": document.source,
-            "timestamp": document.timestamp,
-            "num_raw_chunks": len(raw_records),
-            "num_structured_chunks": len(structured_records),
-            "num_chunks": total_chunks,
-            "status": "ingested",
-        },
-    )
+    meta_row: dict = {
+        "case_id": document.case_id,
+        "doc_id": document.doc_id,
+        "source": document.source,
+        "timestamp": document.timestamp,
+        "num_raw_chunks": len(raw_records),
+        "num_structured_chunks": len(structured_records),
+        "num_chunks": total_chunks,
+        "status": "ingested",
+    }
+    if document.source_url:
+        meta_row["source_url"] = document.source_url
+    write_metadata(document.case_id, document.doc_id, meta_row)
     return IngestResponse(num_chunks=total_chunks, doc_id=document.doc_id)
 
 
