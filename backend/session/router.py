@@ -1,11 +1,12 @@
 import asyncio
+import logging
 import os
 import tempfile
 import uuid
 from typing import Optional
 
 import httpx
-import whisper
+import yake
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
@@ -13,40 +14,48 @@ from research.courtlistener import search_opinions
 from rag.router import store_document_for_rag
 from schemas import StoreDocumentRequest
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/session", tags=["session"])
 
 RAG_BASE = os.environ.get("RAG_BASE_URL", "http://localhost:8000")
+_ELEVENLABS_STT_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 
 # Don't bother querying for one-word answers like "Yes" or "Okay"
 MIN_TEXT_LENGTH = 20
 
-# Spoken filler words that add no signal to a legal search query
-_FILLERS = {
-    "um", "uh", "like", "you know", "i mean", "so", "well", "actually",
-    "basically", "right", "okay", "yeah", "yes", "no", "good", "great",
-    "sure", "i", "my", "we", "they", "it", "the", "a", "an", "and",
-    "but", "or", "just", "really", "very", "kind of", "sort of",
-}
-
-
-def _clean_query(text: str) -> str:
-    """Strip filler words and short tokens to leave substantive legal terms."""
-    words = text.lower().split()
-    kept = [w.strip(".,?!;:\"'") for w in words if w.strip(".,?!;:\"'") not in _FILLERS]
-    meaningful = [w for w in kept if len(w) > 2]
-    return " ".join(meaningful)
+# YAKE keyphrase extractor — initialized once, runs in <10ms per call.
+# n=3: extract up to 3-word phrases  |  top=6: return top 6 keyphrases
+# dedupLim=0.3: aggressively filter near-duplicate phrases
+_kw_extractor = yake.KeywordExtractor(
+    lan="en", n=3, dedupLim=0.3, top=6, features=None,
+)
 
 
 def _build_search_query(text: str, context: list[str]) -> str:
     """
-    Combine the last context lines with the current text, clean filler words.
-    Using context gives CourtListener more signal than a single spoken sentence.
+    Extract keyphrases from transcript text using YAKE, then join them
+    into a search query. Falls back to raw text if YAKE finds nothing.
     """
     combined = " ".join(context[-2:] + [text])
-    return _clean_query(combined)
+    if len(combined.strip()) < MIN_TEXT_LENGTH:
+        return ""
 
-# Load once at startup — takes ~5s for "base", stays in memory for the session
-_whisper_model = whisper.load_model("base")
+    print(f"[YAKE] input ({len(combined)} chars): {combined[:300]}")
+
+    keywords = _kw_extractor.extract_keywords(combined)
+    # keywords = [(phrase, score)] — lower score = more relevant
+    phrases = [kw for kw, _score in keywords]
+
+    if not phrases:
+        return combined.strip()
+
+    query = " ".join(phrases)
+    print(f"[YAKE] query: {query}")
+    return query
+
+def _elevenlabs_api_key() -> str:
+    return os.environ.get("ELEVENLABS_API_KEY", "").strip()
 
 
 # ---------------------------------------------------------------------------
@@ -77,9 +86,12 @@ class SessionQueryResponse(BaseModel):
 
 class SaveToContextRequest(BaseModel):
     case_id: str
-    label: str       # case name / title
+    label: str = ""    # case name / title
     excerpt: str = ""  # snippet text
     url: str = ""      # source URL (e.g. CourtListener link)
+    # Legacy fields — accept but ignore (old frontend may still send these)
+    raw_text: str = ""
+    source: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -89,30 +101,28 @@ class SaveToContextRequest(BaseModel):
 @router.post("/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
     """
-    Accepts a raw audio blob from the browser's MediaRecorder, runs Whisper,
-    and returns the transcribed text.
-
-    model.transcribe() is CPU-bound so it runs in a thread pool to avoid
-    blocking the async event loop.
+    Accepts a raw audio blob from the browser's MediaRecorder,
+    sends it to ElevenLabs Scribe for transcription, and returns the text.
     """
-    suffix = ".webm"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
-        f.write(await audio.read())
-        tmp_path = f.name
+    key = _elevenlabs_api_key()
+    if not key:
+        raise HTTPException(status_code=500, detail="ELEVENLABS_API_KEY is not set")
 
-    try:
-        result = await asyncio.get_event_loop().run_in_executor(
-            None, _whisper_model.transcribe, tmp_path
+    audio_bytes = await audio.read()
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            _ELEVENLABS_STT_URL,
+            headers={"xi-api-key": key},
+            files={"file": ("audio.webm", audio_bytes, "audio/webm")},
+            data={"model_id": "scribe_v1", "language_code": "en"},
         )
-    finally:
-        os.unlink(tmp_path)
 
-    text = result["text"].strip()
+    if resp.status_code != 200:
+        print(f"[ElevenLabs STT] error {resp.status_code}: {resp.text[:200]}")
+        return {"text": ""}
 
-    # Filter out Whisper's noise/silence placeholders
-    if text.lower() in {"", "[blank_audio]", "[music]", "[silence]"}:
-        text = ""
-
+    text = resp.json().get("text", "").strip()
     return {"text": text}
 
 
@@ -162,11 +172,15 @@ async def save_to_context(req: SaveToContextRequest):
     logger = logging.getLogger(__name__)
 
     # Build a rich text block so the stored document is self-contained
-    parts = [req.label]
-    if req.url:
-        parts.append(f"Source: {req.url}")
-    if req.excerpt:
-        parts.append(f"\n{req.excerpt}")
+    label = req.label or req.source or "Saved source"
+    excerpt = req.excerpt or req.raw_text or ""
+    url = req.url or ""
+
+    parts = [label]
+    if url:
+        parts.append(f"Source: {url}")
+    if excerpt:
+        parts.append(f"\n{excerpt}")
     raw_text = "\n".join(parts)
 
     logger.info("save-to-context: case_id=%s, raw_text length=%d", req.case_id, len(raw_text))

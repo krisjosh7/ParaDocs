@@ -122,7 +122,8 @@ function SurfacedCard({ item, onJumpTo, onDelete, onSave }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-const CHUNK_MS = 5000 // record this many ms, stop, transcribe, restart
+const CHUNK_MS = 3000 // record this many ms, stop, transcribe, restart
+const SEARCH_INTERVAL_MS = 20000 // search every 20s using accumulated transcript
 
 export default function LiveSession({ caseId = 'demo-case' }) {
   const [isRecording, setIsRecording] = useState(false)
@@ -138,6 +139,7 @@ export default function LiveSession({ caseId = 'demo-case' }) {
   const activeRef = useRef(false)    // true while session is live
   const transcriptRef = useRef([])   // mirrors transcript state for use inside closures
   const startTimeRef = useRef(null)  // wall-clock ms when recording began
+  const lastSearchTimeRef = useRef(null) // wall-clock ms of last search trigger
 
   function handleDelete(itemId) {
     setSurfaced((s) => s.filter((item) => item.id !== itemId))
@@ -196,33 +198,46 @@ export default function LiveSession({ caseId = 'demo-case' }) {
           const mm = String(Math.floor(elapsedSec / 60)).padStart(2, '0')
           const ss = String(elapsedSec % 60).padStart(2, '0')
           const speaker = `${mm}:${ss}`
-          const context = transcriptRef.current.slice(-2).map((l) => l.text)
-          transcriptRef.current = [...transcriptRef.current, { speaker, text }]
+          const wallTime = Date.now()
+          transcriptRef.current = [...transcriptRef.current, { speaker, text, wallTime }]
           setTranscript((t) => [...t, { speaker, text }])
 
-          // Show a searching placeholder immediately
-          const searchingId = `searching-${lineIndex}`
-          const preview = text.length > 48 ? text.slice(0, 48) + '…' : text
-          setSurfaced((s) => [...s, {
-            id: searchingId,
-            afterLine: lineIndex,
-            type: 'research',
-            status: 'searching',
-            label: `Searching: ${preview}`,
-            excerpt: null,
-            relevance: null,
-            url: null,
-            reason: null,
-          }])
+          // Search every ~20s using a sliding window of recent transcript
+          const sinceLast = lastSearchTimeRef.current ? wallTime - lastSearchTimeRef.current : Infinity
+          if (sinceLast >= SEARCH_INTERVAL_MS) {
+            lastSearchTimeRef.current = wallTime
 
-          fetchSurfaced(caseId, text, lineIndex, context).then((items) => {
-            setSurfaced((s) => {
-              const without = s.filter((item) => item.id !== searchingId)
-              const existingIds = new Set(without.map((item) => item.id))
-              const fresh = items.filter((item) => !existingIds.has(item.id))
-              return [...without, ...fresh]
-            })
-          })
+            // Build a 20s window: grab transcript lines from the last 20s
+            const windowStart = wallTime - SEARCH_INTERVAL_MS
+            const recentLines = transcriptRef.current.filter((l) => l.wallTime >= windowStart)
+            const searchText = recentLines.map((l) => l.text).join(' ')
+            const context = transcriptRef.current.slice(-4).map((l) => l.text)
+
+            if (searchText.trim().length >= 20) {
+              const searchingId = `searching-${lineIndex}`
+              const preview = searchText.length > 48 ? searchText.slice(0, 48) + '…' : searchText
+              setSurfaced((s) => [...s, {
+                id: searchingId,
+                afterLine: lineIndex,
+                type: 'research',
+                status: 'searching',
+                label: `Searching: ${preview}`,
+                excerpt: null,
+                relevance: null,
+                url: null,
+                reason: null,
+              }])
+
+              fetchSurfaced(caseId, searchText, lineIndex, context).then((items) => {
+                setSurfaced((s) => {
+                  const without = s.filter((item) => item.id !== searchingId)
+                  const existingIds = new Set(without.map((item) => item.id))
+                  const fresh = items.filter((item) => !existingIds.has(item.id))
+                  return [...without, ...fresh]
+                })
+              })
+            }
+          }
         }
       }
       // Restart for next chunk if session is still active
@@ -238,10 +253,33 @@ export default function LiveSession({ caseId = 'demo-case' }) {
   async function handleToggle() {
     if (isRecording) {
       activeRef.current = false
-      startTimeRef.current = null
       streamRef.current?.getTracks().forEach((t) => t.stop())
       clearInterval(timerRef.current)
       setIsRecording(false)
+
+      // Save the full transcript as a .txt context file for the case
+      const lines = transcriptRef.current
+      if (lines.length > 0 && caseId) {
+        const fullText = lines.map((l) => `[${l.speaker}] ${l.text}`).join('\n')
+        const timestamp = new Date().toLocaleString()
+        const fileName = `transcript-${Date.now()}.txt`
+        const blob = new Blob([fullText], { type: 'text/plain' })
+        const file = new File([blob], fileName, { type: 'text/plain' })
+        const body = new FormData()
+        body.append('file', file)
+        body.append('context_type', 'document')
+        body.append('title', `Live Session Transcript — ${timestamp}`)
+        body.append('caption', '')
+        body.append('text_full', '')
+        body.append('doc_subtype', 'generic')
+        body.append('source_url', '')
+        fetch(`${API_BASE}/cases/${encodeURIComponent(caseId)}/contexts`, {
+          method: 'POST',
+          body,
+        }).catch(() => {}) // best-effort
+      }
+
+      startTimeRef.current = null
       return
     }
 
@@ -251,6 +289,7 @@ export default function LiveSession({ caseId = 'demo-case' }) {
     setElapsed(0)
     lineIndexRef.current = 0
     transcriptRef.current = []
+    lastSearchTimeRef.current = null
 
     // Request microphone
     let stream
@@ -263,6 +302,7 @@ export default function LiveSession({ caseId = 'demo-case' }) {
     streamRef.current = stream
     activeRef.current = true
     startTimeRef.current = Date.now()
+    lastSearchTimeRef.current = Date.now() // first search fires after 20s, not immediately
 
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
     startChunk(stream)
