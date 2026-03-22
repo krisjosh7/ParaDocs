@@ -287,7 +287,7 @@ async def search(req: SearchRequest):
                 seen.add(result["id"])
                 raw_results.append(result)
 
-    MAX_RAW_RESULTS = 30
+    MAX_RAW_RESULTS = 10
     if len(raw_results) > MAX_RAW_RESULTS:
         print(f"[search] Capping results from {len(raw_results)} to {MAX_RAW_RESULTS}")
         raw_results = raw_results[:MAX_RAW_RESULTS]

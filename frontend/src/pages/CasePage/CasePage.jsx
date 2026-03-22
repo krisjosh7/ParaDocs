@@ -428,7 +428,7 @@ function mapTimelineEntryFromApi(e) {
   }
 }
 
-const TABS = ['Case Dashboard', 'Discovery', 'Live Session']
+const TABS = ['Case Dashboard', 'Discovery', 'Live Listen']
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -937,7 +937,7 @@ export default function CasePage({ cases }) {
       </header>
 
       <div className="layout-body">
-        {activeTab === 'Live Session' ? (
+        {activeTab === 'Live Listen' ? (
           <LiveSession caseId={caseId} />
         ) : isDiscoveryRoute ? (
           <ContextUploadPage caseId={caseId} />
