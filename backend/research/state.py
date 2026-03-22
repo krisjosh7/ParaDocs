@@ -86,3 +86,20 @@ class ResearchState(TypedDict):
     # new text queries or to chase citations directly via
     # get_forward_citations / get_backward_citations.
     # Populated by score_results, consumed by the search node.
+
+
+def initial_research_graph_state(case_id: str) -> ResearchState:
+    """Starting state for research_subgraph (shared with POST /research/run)."""
+    return {
+        "case_id": case_id,
+        "case_facts": "",
+        "iteration": 0,
+        "stop_reason": None,
+        "queries_run": [],
+        "queries_to_run": [],
+        "raw_results": [],
+        "scored_results": [],
+        "all_stored_results": [],
+        "seen_result_ids": [],
+        "top_result_ids": [],
+    }

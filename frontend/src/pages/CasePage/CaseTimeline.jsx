@@ -5,20 +5,65 @@ import { discoveryContextUploadHref, exactSourceLinkText } from '../../utils/dis
 import 'react-vertical-timeline-component/style.min.css'
 import './CaseTimeline.css'
 
-function TimelineDot() {
+/** Parser confidence below this → treat as weak. */
+const WEAK_CONFIDENCE_MAX = 0.55
+/** Primary support_score below this fraction of the strongest row → weak (only if max > 0). */
+const WEAK_SUPPORT_FRACTION_OF_MAX = 0.72
+
+function maxPrimarySupportScore(events) {
+  let m = 0
+  for (const e of events) {
+    const s = e.support_score
+    if (s == null) continue
+    const n = Number(s)
+    if (Number.isFinite(n)) m = Math.max(m, n)
+  }
+  return m
+}
+
+/** Weak = low parser confidence and/or comparatively low timeline support vs other primary rows. */
+function entryIsWeak(entry, maxPrimarySupport) {
+  const c = entry.confidence
+  if (c != null) {
+    const cn = Number(c)
+    if (Number.isFinite(cn) && cn < WEAK_CONFIDENCE_MAX) return true
+  }
+  const ss = entry.support_score
+  if (maxPrimarySupport > 0 && ss != null) {
+    const sn = Number(ss)
+    if (Number.isFinite(sn) && sn < maxPrimarySupport * WEAK_SUPPORT_FRACTION_OF_MAX) return true
+  }
+  return false
+}
+
+function TimelineDot({ weak }) {
   return (
     <svg className="pd-timeline-dot-svg" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <circle cx="10" cy="10" r="8" fill="#37456d" stroke="rgba(232, 238, 252, 0.35)" strokeWidth="2" />
-      <circle cx="10" cy="10" r="4" fill="#e8eefc" />
+      <circle
+        cx="10"
+        cy="10"
+        r="8"
+        fill={weak ? '#2f3648' : '#37456d'}
+        stroke={weak ? 'rgba(232, 238, 252, 0.22)' : 'rgba(232, 238, 252, 0.35)'}
+        strokeWidth="2"
+      />
+      <circle cx="10" cy="10" r="4" fill={weak ? 'rgba(232, 238, 252, 0.5)' : '#e8eefc'} />
     </svg>
   )
 }
 
 /** Dot / fork only on the spine; date is rendered above the card (see TimelineDateNearNode). */
-function TimelineNode({ branch }) {
+function TimelineNode({ branch, weak }) {
   return (
-    <span className={branch ? 'pd-timeline-node-bubble pd-timeline-node-bubble--branch' : 'pd-timeline-node-bubble'}>
-      {branch ? <TimelineForkIcon /> : <TimelineDot />}
+    <span
+      className={[
+        branch ? 'pd-timeline-node-bubble pd-timeline-node-bubble--branch' : 'pd-timeline-node-bubble',
+        weak ? 'pd-timeline-node-bubble--weak' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {branch ? <TimelineForkIcon /> : <TimelineDot weak={weak} />}
     </span>
   )
 }
@@ -145,11 +190,11 @@ function previewForSelectedBranch(item, selectedEventsIndex) {
   }
 }
 
-function ForkCollapsedPanel({ item, selectedEventsIndex, onExpand, onOpenSource }) {
+function ForkCollapsedPanel({ item, selectedEventsIndex, onExpand, onOpenSource, weak }) {
   const p = previewForSelectedBranch(item, selectedEventsIndex)
 
   return (
-    <div className="pd-fork-collapsed">
+    <div className={`pd-fork-collapsed${weak ? ' pd-fork-collapsed--weak' : ''}`}>
       <div className="pd-fork-collapsed-preview">
         <h3 className="timeline-event-title">{p.title}</h3>
         {p.description ? (
@@ -173,6 +218,21 @@ function ForkCollapsedPanel({ item, selectedEventsIndex, onExpand, onOpenSource 
   )
 }
 
+/** Preferred branch first; then others by timeline support_score (strongest next). Chronology of the row is unchanged. */
+function sortForkStackCards(cards, selectedEventsIndex) {
+  return [...cards].sort((a, b) => {
+    const pickA = a.events_json_index === selectedEventsIndex
+    const pickB = b.events_json_index === selectedEventsIndex
+    if (pickA !== pickB) return pickA ? -1 : 1
+    const na = Number(a.support_score)
+    const nb = Number(b.support_score)
+    const fa = Number.isFinite(na) ? na : Number.NEGATIVE_INFINITY
+    const fb = Number.isFinite(nb) ? nb : Number.NEGATIVE_INFINITY
+    if (fb !== fa) return fb - fa
+    return 0
+  })
+}
+
 function TimelineBranchBlock({
   caseId,
   item,
@@ -182,34 +242,38 @@ function TimelineBranchBlock({
   onOpenSource,
   onCollapse,
   rootRef,
+  maxPrimarySupport,
 }) {
   const conflictId = item.conflict_id
   const bl = item.branch_llm
   const suggested = bl && bl.suggested_events_json_index != null ? bl.suggested_events_json_index : null
-  const cards = [
-    {
-      key: item.id,
-      title: item.title,
-      description: item.description,
-      events_json_index: item.events_json_index,
-      doc_id: item.doc_id,
-      confidence: item.confidence,
-      support_score: item.support_score,
-      source_context: item.source_context,
-      date: item.date,
-    },
-    ...item.alternates.map((a) => ({
-      key: a.id,
-      title: a.title,
-      description: a.description,
-      events_json_index: a.events_json_index,
-      doc_id: a.doc_id,
-      confidence: a.confidence,
-      support_score: a.support_score,
-      source_context: a.source_context,
-      date: a.date || item.date,
-    })),
-  ]
+  const cards = sortForkStackCards(
+    [
+      {
+        key: item.id,
+        title: item.title,
+        description: item.description,
+        events_json_index: item.events_json_index,
+        doc_id: item.doc_id,
+        confidence: item.confidence,
+        support_score: item.support_score,
+        source_context: item.source_context,
+        date: item.date,
+      },
+      ...item.alternates.map((a) => ({
+        key: a.id,
+        title: a.title,
+        description: a.description,
+        events_json_index: a.events_json_index,
+        doc_id: a.doc_id,
+        confidence: a.confidence,
+        support_score: a.support_score,
+        source_context: a.source_context,
+        date: a.date || item.date,
+      })),
+    ],
+    selectedEventsIndex,
+  )
 
   function openCard(c) {
     onOpenSource({
@@ -267,10 +331,17 @@ function TimelineBranchBlock({
       <div className="timeline-fork-cards timeline-fork-cards--split">
         {cards.map((card) => {
           const selected = card.events_json_index === selectedEventsIndex
+          const weakCard = entryIsWeak(card, maxPrimarySupport)
           return (
             <div
               key={card.key}
-              className={`timeline-fork-card${selected ? ' timeline-fork-card--selected' : ' timeline-fork-card--muted'}`}
+              className={[
+                'timeline-fork-card',
+                selected ? 'timeline-fork-card--selected' : 'timeline-fork-card--muted',
+                weakCard ? 'timeline-fork-card--weak' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
             >
               <div className="timeline-fork-card-inner">
                 <button
@@ -281,22 +352,24 @@ function TimelineBranchBlock({
                   <h3 className="timeline-event-title">{card.title}</h3>
                   <p className="timeline-event-desc">{card.description}</p>
                 </button>
-                <BranchCardExactSource caseId={caseId} sourceContext={card.source_context} docId={card.doc_id} />
-                {!selected && (
-                  <button
-                    type="button"
-                    className="timeline-branch-swap"
-                    onClick={(ev) => {
-                      ev.stopPropagation()
-                      onPrefer(conflictId, card.events_json_index, algorithmicWinnerIndex)
-                    }}
-                    title="Prefer this version for this date"
-                    aria-label="Prefer this timeline version"
-                  >
-                    <BranchSwapIcon />
-                    <span className="timeline-branch-swap-label">Prefer this</span>
-                  </button>
-                )}
+                <div className="timeline-fork-card-actions">
+                  <BranchCardExactSource caseId={caseId} sourceContext={card.source_context} docId={card.doc_id} />
+                  {!selected && (
+                    <button
+                      type="button"
+                      className="timeline-branch-swap"
+                      onClick={(ev) => {
+                        ev.stopPropagation()
+                        onPrefer(conflictId, card.events_json_index, algorithmicWinnerIndex)
+                      }}
+                      title="Prefer this version for this date"
+                      aria-label="Prefer this timeline version"
+                    >
+                      <BranchSwapIcon />
+                      <span className="timeline-branch-swap-label">Prefer this</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )
@@ -376,6 +449,8 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
 
   if (!events.length) return null
 
+  const maxPrimarySupport = maxPrimarySupportScore(events)
+
   return (
     <div className="pd-vtl-wrap">
       <VerticalTimeline layout="2-columns" lineColor="rgba(232, 238, 252, 0.22)" animate>
@@ -387,10 +462,18 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
               : algorithmicWinnerIndex
           const branch = event.hasBranch && event.conflict_id != null
           const expanded = expandedForkIds.has(event.id)
+          const weakSimple = !branch && entryIsWeak(event, maxPrimarySupport)
+          const collapsedPreviewWeak =
+            branch && !expanded && entryIsWeak(previewForSelectedBranch(event, selectedIdx), maxPrimarySupport)
+          const spineWeak = weakSimple || collapsedPreviewWeak
+          const rowClass = [branch ? 'pd-vtl-fork-element' : '', spineWeak ? 'pd-vtl-element--weak' : '']
+            .filter(Boolean)
+            .join(' ')
+
           return (
             <VerticalTimelineElement
               key={event.id}
-              className={branch ? 'pd-vtl-fork-element' : undefined}
+              className={rowClass || undefined}
               position={index % 2 === 0 ? 'left' : 'right'}
               date=""
               iconClassName="pd-timeline-node-icon"
@@ -406,7 +489,7 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
               }
               contentArrowStyle={timelineArrowStyle}
               iconStyle={timelineNodeOuterIconStyle}
-              icon={<TimelineNode branch={branch} />}
+              icon={<TimelineNode branch={branch} weak={spineWeak} />}
             >
               <TimelineDateNearNode date={event.date} sortDate={event.sort_date} />
               {branch && !expanded ? (
@@ -415,6 +498,7 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
                   selectedEventsIndex={selectedIdx}
                   onExpand={() => expandFork(event.id)}
                   onOpenSource={onOpenSource}
+                  weak={collapsedPreviewWeak}
                 />
               ) : branch ? (
                 <TimelineBranchBlock
@@ -425,6 +509,7 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
                   onPrefer={onPreferBranch}
                   onOpenSource={onOpenSource}
                   onCollapse={() => collapseFork(event.id)}
+                  maxPrimarySupport={maxPrimarySupport}
                   rootRef={(el) => {
                     if (el) expandedRootRefs.current.set(event.id, el)
                     else expandedRootRefs.current.delete(event.id)
@@ -433,7 +518,7 @@ export default function CaseTimeline({ caseId, events, branchPick, onPreferBranc
               ) : (
                 <button
                   type="button"
-                  className="timeline-simple-card"
+                  className={`timeline-simple-card${weakSimple ? ' timeline-simple-card--weak' : ''}`}
                   onClick={() =>
                     onOpenSource({
                       date: event.date,

@@ -221,24 +221,24 @@ def ingest_endpoint(payload: IngestRequest) -> IngestResponse:
         meta_row["source_url"] = document.source_url
     write_metadata(document.case_id, document.doc_id, meta_row)
 
-    # Phase 1 case event index: merge this doc's events into cases/{case_id}/events.json
-    # (runs for every ingest: Discovery /store pipeline, POST /ingest, POST /store, etc.)
-    try:
-        append_events_from_ingest(document.case_id, document.doc_id, structured)
-    except Exception:
-        _logger.exception(
-            "Failed to merge events into events.json for case_id=%s doc_id=%s",
-            document.case_id,
-            document.doc_id,
-        )
+    # Phase 1 case event index + timeline (unless LangGraph pipeline will run them).
+    if not payload.defer_case_index:
+        try:
+            append_events_from_ingest(document.case_id, document.doc_id, structured)
+        except Exception:
+            _logger.exception(
+                "Failed to merge events into events.json for case_id=%s doc_id=%s",
+                document.case_id,
+                document.doc_id,
+            )
 
-    try:
-        rebuild_case_timeline(document.case_id)
-    except Exception:
-        _logger.exception(
-            "Failed to rebuild timelines.json for case_id=%s",
-            document.case_id,
-        )
+        try:
+            rebuild_case_timeline(document.case_id)
+        except Exception:
+            _logger.exception(
+                "Failed to rebuild timelines.json for case_id=%s",
+                document.case_id,
+            )
 
     return IngestResponse(num_chunks=total_chunks, doc_id=document.doc_id)
 
@@ -248,7 +248,13 @@ def store_document_for_rag(payload: StoreDocumentRequest) -> StoreResponse:
     document = _build_document_for_store(payload)
     write_raw_text(document.case_id, document.doc_id, document.raw_text)
     structured = parse_legal_structure(document)
-    ingest_result = ingest_endpoint(IngestRequest(document=document, structured=structured))
+    ingest_result = ingest_endpoint(
+        IngestRequest(
+            document=document,
+            structured=structured,
+            defer_case_index=payload.defer_case_index,
+        ),
+    )
     return StoreResponse(
         doc_id=document.doc_id,
         status="stored",
