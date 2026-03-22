@@ -13,7 +13,7 @@ from research.courtlistener import search_opinions
 
 router = APIRouter(prefix="/session", tags=["session"])
 
-RAG_BASE = os.environ.get("RAG_BASE_URL", "http://localhost:8001")
+RAG_BASE = os.environ.get("RAG_BASE_URL", "http://localhost:8000")
 
 # Don't bother querying for one-word answers like "Yes" or "Okay"
 MIN_TEXT_LENGTH = 20

@@ -17,7 +17,7 @@ from research.state import MAX_ITERATIONS, RELEVANCE_THRESHOLD
 router = APIRouter(prefix="/research", tags=["research"])
 
 # Base URL for the RAG service (teammate's backend)
-RAG_BASE = os.environ.get("RAG_BASE_URL", "http://localhost:8001")
+RAG_BASE = os.environ.get("RAG_BASE_URL", "http://localhost:8000")
 
 
 # ---------------------------------------------------------------------------
