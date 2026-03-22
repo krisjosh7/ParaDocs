@@ -1,13 +1,13 @@
 :root {
   /* Shared with context upload scrim so overlay matches app chrome */
-  --shell-gradient: linear-gradient(180deg, #37456d 0%, #16103b 100%);
+  --shell-gradient: linear-gradient(180deg, #1e2d4a 0%, #0f1a2e 100%);
 }
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
-  background: #6b8ce6;
-  color: #e8eefc;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #1a2744;
+  color: #f5f0e8;
 }
 
 * {
@@ -33,15 +33,17 @@ body {
   align-items: center;
   gap: 16px;
   padding: 0 16px 0 12px;
-  border-bottom: 1px solid rgba(232, 238, 252, 0.12);
+  border-bottom: 1px solid rgba(184, 148, 62, 0.25);
 }
 
 .top-header h1 {
   margin: 0;
   font-size: 1.35rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
+  letter-spacing: 0.04em;
   white-space: nowrap;
+  color: #d4a854;
 }
 
 .header-search-wrap {
@@ -53,11 +55,11 @@ body {
 
 .header-context-upload-link {
   flex-shrink: 0;
-  border: 1px solid rgba(232, 238, 252, 0.22);
+  border: 1px solid rgba(184, 148, 62, 0.35);
   border-radius: 999px;
   padding: 10px 16px;
-  background: rgba(232, 238, 252, 0.08);
-  color: #e8eefc;
+  background: rgba(184, 148, 62, 0.1);
+  color: #f5f0e8;
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
@@ -65,7 +67,7 @@ body {
 }
 
 .header-context-upload-link:hover {
-  background: rgba(232, 238, 252, 0.14);
+  background: rgba(184, 148, 62, 0.2);
   transform: translateY(-1px);
 }
 
@@ -73,26 +75,26 @@ body {
   width: 100%;
   height: 44px;
   padding: 0 16px;
-  border: 1px solid rgba(232, 238, 252, 0.18);
+  border: 1px solid rgba(245, 240, 232, 0.18);
   border-radius: 12px;
-  background: #2f3a52;
-  color: #e8eefc;
+  background: #1e2d4a;
+  color: #f5f0e8;
   font-size: 0.95rem;
   outline: none;
   transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
 }
 
 .header-search::placeholder {
-  color: rgba(232, 238, 252, 0.45);
+  color: rgba(245, 240, 232, 0.45);
 }
 
 .header-search:hover {
-  background: #35425c;
+  background: #243a5e;
 }
 
 .header-search:focus {
-  border-color: rgba(232, 238, 252, 0.35);
-  box-shadow: 0 0 0 2px rgba(232, 238, 252, 0.12);
+  border-color: rgba(184, 148, 62, 0.5);
+  box-shadow: 0 0 0 2px rgba(184, 148, 62, 0.15);
 }
 
 .visually-hidden {
@@ -119,7 +121,7 @@ body {
 }
 
 .home-header-button:hover {
-  background: rgba(232, 238, 252, 0.08);
+  background: rgba(245, 240, 232, 0.08);
   transform: translateY(-1px);
 }
 
@@ -149,14 +151,15 @@ body {
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
+  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
   letter-spacing: 0.02em;
   flex-shrink: 0;
 }
 
 .header-chat-button {
-  border: 1px solid rgba(232, 238, 252, 0.25);
-  background: rgba(22, 36, 70, 0.55);
-  color: #e8eefc;
+  border: 1px solid rgba(245, 240, 232, 0.25);
+  background: rgba(15, 26, 46, 0.55);
+  color: #f5f0e8;
   height: 44px;
   padding: 0 14px;
   border-radius: 12px;
@@ -167,8 +170,8 @@ body {
 }
 
 .header-chat-button:hover {
-  background: rgba(45, 66, 116, 0.75);
-  border-color: rgba(232, 238, 252, 0.4);
+  background: rgba(30, 45, 74, 0.75);
+  border-color: rgba(245, 240, 232, 0.4);
   transform: translateY(-1px);
 }
 
@@ -185,21 +188,22 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid rgba(232, 238, 252, 0.2);
+  border: 1px solid rgba(245, 240, 232, 0.2);
   border-radius: 14px;
-  background: rgba(232, 238, 252, 0.07);
-  color: #e8eefc;
+  background: rgba(245, 240, 232, 0.07);
+  color: #f5f0e8;
 }
 
 .chat-placeholder h2 {
   margin: 0;
   font-size: 1.5rem;
+  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
 }
 
 .chat-placeholder p {
   margin: 0;
   font-size: 1rem;
-  color: rgba(232, 238, 252, 0.75);
+  color: rgba(245, 240, 232, 0.75);
 }
 
 .main-content {
@@ -222,7 +226,7 @@ body {
   padding: 24px;
   text-align: center;
   font-size: 1.25rem;
-  color: rgba(232, 238, 252, 0.75);
+  color: rgba(245, 240, 232, 0.75);
 }
 
 .case-card {
@@ -230,7 +234,8 @@ body {
   min-height: 380px;
   cursor: pointer;
   background: #f6f3ea;
-  border: 1px solid #e6dcc4;
+  border: 1px solid #d4c09a;
+  border-top: 3px solid #b8943e;
   border-radius: 14px;
   padding: 32px;
   padding-top: 48px;
@@ -295,7 +300,8 @@ body {
   padding: 24px 28px;
   border-radius: 14px;
   background: #f6f3ea;
-  border: 1px solid #e6dcc4;
+  border: 1px solid #d4c09a;
+  border-top: 3px solid #b8943e;
   box-shadow: 0 20px 48px rgba(5, 10, 24, 0.4);
 }
 
@@ -303,6 +309,7 @@ body {
   margin: 0 0 12px;
   font-size: 1.35rem;
   font-weight: 700;
+  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
   color: #1c2744;
 }
 
@@ -356,6 +363,7 @@ body {
   margin: 0 0 20px;
   font-size: 2.2rem;
   font-weight: 700;
+  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
   color: #1c2744;
 }
 
@@ -364,6 +372,7 @@ body {
   color: #374669;
   line-height: 1.45;
   font-size: 1.9rem;
+  font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
 }
 
 .floating-actions {
@@ -395,10 +404,10 @@ body {
 
 .floating-menu-item {
   min-width: 170px;
-  border: 1px solid rgba(232, 238, 252, 0.26);
+  border: 1px solid rgba(245, 240, 232, 0.26);
   border-radius: 999px;
-  background: #415076;
-  color: #e8eefc;
+  background: #2a3f6e;
+  color: #f5f0e8;
   padding: 10px 14px;
   font-size: 0.9rem;
   text-align: left;
@@ -408,7 +417,7 @@ body {
 }
 
 .floating-menu-item:hover {
-  background: #2056d3;
+  background: #b8943e;
   transform: translateY(-1px);
   box-shadow: 0 10px 20px rgba(5, 10, 24, 0.38);
 }
@@ -416,10 +425,10 @@ body {
 .floating-action-button {
   width: 52px;
   height: 52px;
-  border: 1px solid rgba(232, 238, 252, 0.25);
+  border: 1px solid rgba(184, 148, 62, 0.4);
   border-radius: 999px;
-  background: #415076;
-  color: #e8eefc;
+  background: #b8943e;
+  color: #f5f0e8;
   font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
@@ -428,7 +437,7 @@ body {
 }
 
 .floating-action-button:hover {
-  background: #2056d3;
+  background: #c9a44e;
   transform: translateY(-2px);
   box-shadow: 0 12px 24px rgba(5, 10, 24, 0.42);
 }
