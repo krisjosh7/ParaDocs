@@ -32,7 +32,7 @@ function discoveredSourcePill(meta, row) {
   const src = String(meta?.source || '').toLowerCase()
   const url = (row?.sourceUrl || row?.source_url || '').trim()
   const isWeb = src === 'web' || (Boolean(url) && src !== 'upload')
-  if (isWeb) return { variant: 'web', text: 'web' }
+  if (isWeb) return { variant: 'web', text: 'Found by ParaDocs' }
   if (src && TYPE_LABELS[src]) return { variant: 'catalog', text: TYPE_LABELS[src] }
   return { variant: 'catalog', text: TYPE_LABELS.document }
 }
