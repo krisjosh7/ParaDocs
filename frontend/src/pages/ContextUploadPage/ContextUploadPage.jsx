@@ -1104,6 +1104,11 @@ export default function ContextUploadPage({ onBack, caseId }) {
                                     {item.caption.trim()}
                                   </p>
                                 ) : null}
+                                {item.ragIngestError ? (
+                                  <p className="context-card-rag-error" role="alert" title={item.ragIngestError}>
+                                    Indexing failed: {item.ragIngestError}
+                                  </p>
+                                ) : null}
                               </div>
                             </div>
                           </article>

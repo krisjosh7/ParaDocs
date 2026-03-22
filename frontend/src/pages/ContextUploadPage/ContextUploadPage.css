@@ -764,6 +764,15 @@
   max-height: calc(2 * 1.45 * 1em);
 }
 
+.context-card-rag-error {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: rgba(255, 180, 100, 0.98);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
 .context-fab-wrap {
   position: fixed;
   right: 24px;

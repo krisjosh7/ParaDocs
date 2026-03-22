@@ -87,6 +87,7 @@ Use **Ping Backend** and **Echo** in the UI to hit the API.
 
 - **`PYTHON`**: Optional. Path or command for the Python executable used to run uvicorn (overrides `py -3` on Windows and `python` elsewhere).
 - **`CASES_ROOT`**: Optional base directory for case files (default: `backend/cases`).
+- **`GROQ_API_KEY`**: Required for legal-structure parsing on RAG ingest. Without it, Discovery uploads still save to the context library, but **`cases/{case_id}/structured/{doc_id}.json`** is not written and the UI may show an indexing error on the card.
 - **`CHROMA_PERSIST_DIR`**: Optional Chroma persistence directory (default: `backend/chroma`).
 - **`OLLAMA_MODEL`**: Ollama extraction model (default: `llama3.1:8b`).
 - **`EMBED_MODEL`**: sentence-transformers embedding model (default: `all-MiniLM-L6-v2`).

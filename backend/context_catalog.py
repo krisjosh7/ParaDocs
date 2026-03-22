@@ -60,6 +60,26 @@ def set_rag_doc_id_for_context(case_id: str, context_id: str, rag_doc_id: str) -
     for row in items:
         if str(row.get("id")) == cid:
             row["rag_doc_id"] = rid
+            row.pop("rag_ingest_error", None)
+            changed = True
+            break
+    if changed:
+        write_catalog(case_id, items)
+
+
+def set_rag_ingest_failed(case_id: str, context_id: str, message: str) -> None:
+    """Record why background RAG ingest did not produce structured/{doc_id}.json (logged + catalog)."""
+    cid = (context_id or "").strip()
+    if not cid:
+        return
+    msg = (message or "").strip() or "RAG ingest failed"
+    if len(msg) > 2000:
+        msg = msg[:1997] + "…"
+    items = read_catalog(case_id)
+    changed = False
+    for row in items:
+        if str(row.get("id")) == cid:
+            row["rag_ingest_error"] = msg
             changed = True
             break
     if changed:
