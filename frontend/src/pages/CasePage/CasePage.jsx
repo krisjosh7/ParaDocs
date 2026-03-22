@@ -165,7 +165,7 @@ export default function CasePage({ cases }) {
         </button>
         <div className="case-header-title">
           <h1>{caseData.title}</h1>
-          <p>{caseData.summary}</p>
+          <p>{caseData.description ?? caseData.summary ?? ''}</p>
         </div>
         <nav className="case-nav" ref={navRef}>
           <span

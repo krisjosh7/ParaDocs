@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
 import re
 import time
+from pathlib import Path
 from typing import Any
 
 import requests as http_requests
@@ -24,6 +26,87 @@ def default_model() -> str:
     return (
         os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile").strip() or "llama-3.3-70b-versatile"
     )
+
+
+def default_vision_model() -> str:
+    return (
+        os.environ.get("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct").strip()
+        or "meta-llama/llama-4-scout-17b-16e-instruct"
+    )
+
+
+VISION_INGEST_SYSTEM = """You describe a single image for legal case evidence indexing (search and retrieval).
+
+Strict rules:
+- Report only what is directly observable: visible objects, scene/setting, readable text in the image, colors, layout, damage or markings if visible.
+- Do not invent names, dates, document titles, dollar amounts, or legal conclusions that are not legible in the image.
+- Do not identify real-world individuals by name unless that name appears in the image text.
+- If something is blurry, cropped, occluded, or ambiguous, say so explicitly.
+- If the user message includes an uploader caption, treat it as hints only: align your description with pixels; if the caption conflicts with the image, note that briefly and prioritize what you see.
+- Prefer cautious phrasing when unsure ("appears to", "unclear whether", "partially visible").
+- If the image is blank, nearly blank, or corrupted, say so in one or two short sentences.
+- Output plain prose only (no markdown code fences). Short paragraphs are fine; avoid marketing tone.
+"""
+
+
+def describe_image_for_ingest(path: Path, *, caption: str = "") -> str:
+    """
+    Call Groq vision model to produce a factual image description for RAG.
+    Returns empty string on failure (caller may still have title/caption in the header).
+    """
+    from rag.document_extract import prepare_image_for_vision_api
+
+    prepared = prepare_image_for_vision_api(path)
+    if prepared is None:
+        return ""
+
+    raw_bytes, mime = prepared
+    data_url = f"data:{mime};base64,{base64.b64encode(raw_bytes).decode('ascii')}"
+
+    user_text = "Describe this image for case documentation and retrieval, following your instructions."
+    cap = (caption or "").strip()
+    if cap:
+        user_text += (
+            "\n\nUploader-provided caption (may be incomplete or incorrect—verify against the image): "
+            + cap
+        )
+
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": VISION_INGEST_SYSTEM},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_text},
+                {"type": "image_url", "image_url": {"url": data_url}},
+            ],
+        },
+    ]
+
+    try:
+        client = _client()
+    except RuntimeError as e:
+        logger.warning("Vision description skipped: %s", e)
+        return ""
+
+    try:
+        resp = client.chat.completions.create(
+            model=default_vision_model(),
+            messages=messages,
+            temperature=0.2,
+            max_completion_tokens=1536,
+        )
+    except RateLimitError as e:
+        logger.warning("Groq rate limit on vision ingest: %s", e)
+        return ""
+    except Exception as e:
+        logger.warning("Groq vision ingest failed: %s", e)
+        return ""
+
+    choice = resp.choices[0]
+    content = choice.message.content
+    if not content:
+        return ""
+    return _strip_thinking(content.strip())
 
 
 def _api_key() -> str:
@@ -144,3 +227,10 @@ def generate_text(system_instruction: str, user_text: str, *, temperature: float
         temperature=temperature,
         response_format=None,
     )
+
+
+def chat_messages(messages: list[dict[str, str]], *, temperature: float = 0.3) -> str:
+    """Multi-turn chat; first message should be system. Uses Groq with NVIDIA NIM fallback."""
+    if not messages:
+        raise ValueError("messages must not be empty")
+    return _completion_text(messages, temperature=temperature, response_format=None)

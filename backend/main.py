@@ -14,11 +14,16 @@ load_dotenv(_backend_dir / ".env")
 load_dotenv(_backend_dir.parent / ".env")
 
 from fastapi import Body, FastAPI, File, HTTPException, Request, UploadFile
+from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from context_catalog import validate_case_id
+from routes_chat import router as chat_router
 from routes_contexts import router as contexts_router
 from routes_discovered import router as discovered_router
 from rag.router import router as rag_router
+from rag.vector_store import delete_chunks_for_case_id
+from storage import create_case_record, default_cases_root, delete_case_tree, list_case_summaries
 
 # Routers — each subgraph registers its own router here
 from research.router import router as research_router
@@ -39,6 +44,7 @@ app.add_middleware(
 )
 app.mount("/media", StaticFiles(directory=SESSION_MEDIA_DIR), name="media")
 app.include_router(rag_router)
+app.include_router(chat_router)
 app.include_router(contexts_router)
 app.include_router(discovered_router)
 
@@ -59,9 +65,50 @@ app.include_router(research_router)
 app.include_router(session_router)
 
 
+class CaseSummaryOut(BaseModel):
+    id: str
+    title: str
+    summary: str
+
+
+class CaseCreateIn(BaseModel):
+    title: str = Field(..., min_length=1, max_length=500)
+    summary: str = Field(default="", max_length=50000)
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/cases", response_model=list[CaseSummaryOut])
+def list_cases():
+    return list_case_summaries()
+
+
+@app.post("/cases")
+def create_case(body: CaseCreateIn) -> dict[str, str | dict[str, str]]:
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title is required")
+    try:
+        case = create_case_record(title, body.summary)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail="Could not create case directory") from e
+    return {"status": "created", "case": case}
+
+
+@app.delete("/cases/{case_id}")
+def delete_case(case_id: str) -> dict[str, str]:
+    try:
+        cid = validate_case_id(case_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if not (default_cases_root() / cid).is_dir():
+        raise HTTPException(status_code=404, detail="Case not found")
+    delete_chunks_for_case_id(cid)
+    delete_case_tree(cid)
+    return {"status": "deleted", "case_id": cid}
 
 
 @app.post("/echo")
