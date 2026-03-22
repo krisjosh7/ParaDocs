@@ -1,9 +1,9 @@
 """
-Optional end-to-end tests against a real Ollama server (127.0.0.1:11434).
-Skipped automatically when Ollama is down or the model is missing.
+Optional end-to-end tests against the real Groq API.
+Skipped when GROQ_API_KEY is unset.
 
 Run only these:
-  pytest tests/rag/test_rag_ollama_live.py -m ollama -v
+  pytest rag/tests/test_rag_groq_live.py -m groq -v
 """
 
 from __future__ import annotations
@@ -20,9 +20,9 @@ def client(rag_isolation):
     return TestClient(app)
 
 
-@pytest.mark.ollama
-def test_live_parse_returns_valid_structured_document(require_ollama, client, rag_isolation) -> None:
-    """Calls real Ollama via parser.parse_legal_structure; model from OLLAMA_MODEL env."""
+@pytest.mark.groq
+def test_live_parse_returns_valid_structured_document(require_groq, client, rag_isolation) -> None:
+    """Calls real Groq via parse_legal_structure; model from GROQ_MODEL env."""
     doc = Document(
         case_id="live-parse-case",
         doc_id="live-parse-doc",
@@ -39,7 +39,7 @@ def test_live_parse_returns_valid_structured_document(require_ollama, client, ra
             detail = r.json()
         except Exception:
             detail = r.text
-        pytest.skip(f"Ollama parse not available: {r.status_code} {detail}")
+        pytest.skip(f"Groq parse not available: {r.status_code} {detail}")
     data = r.json()
     assert data["case_id"] == "live-parse-case"
     assert data["doc_id"] == "live-parse-doc"
@@ -48,9 +48,9 @@ def test_live_parse_returns_valid_structured_document(require_ollama, client, ra
     assert isinstance(data.get("claims"), list)
 
 
-@pytest.mark.ollama
-def test_live_store_parses_and_query_returns_chunks(require_ollama, client, rag_isolation) -> None:
-    """Full /store (parse + ingest + disk) then /query; skips if model errors."""
+@pytest.mark.groq
+def test_live_store_parses_and_query_returns_chunks(require_groq, client, rag_isolation) -> None:
+    """Full /store (parse + ingest + disk) then /query; skips if API errors."""
     case_id = "live-store-case"
     r = client.post(
         "/store",
@@ -65,7 +65,7 @@ def test_live_store_parses_and_query_returns_chunks(require_ollama, client, rag_
         },
     )
     if r.status_code != 200:
-        pytest.skip(f"Ollama store pipeline failed: {r.status_code} {r.text}")
+        pytest.skip(f"Groq store pipeline failed: {r.status_code} {r.text}")
     doc_id = r.json()["doc_id"]
     qr = client.post(
         "/query",

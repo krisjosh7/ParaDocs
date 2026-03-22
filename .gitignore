@@ -8,6 +8,7 @@ __pycache__/
 *.pyc
 .DS_Store
 backend/venv/
+.env
 backend/cases/
 backend/chroma/
 backend/.coverage

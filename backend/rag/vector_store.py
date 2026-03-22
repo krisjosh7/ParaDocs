@@ -8,16 +8,21 @@ from uuid import uuid4
 import chromadb
 from chromadb.api.models.Collection import Collection
 
-from embedding import embed_texts
+from .embedding import embed_texts
 
 COLLECTION_NAME = "case_documents"
+
+
+def _backend_root() -> Path:
+    """backend/ directory (parent of the rag package)."""
+    return Path(__file__).resolve().parent.parent
 
 
 @lru_cache(maxsize=1)
 def get_collection() -> Collection:
     persist_dir = os.environ.get("CHROMA_PERSIST_DIR", "").strip()
     if not persist_dir:
-        persist_dir = str((Path(__file__).resolve().parent / "chroma").resolve())
+        persist_dir = str((_backend_root() / "chroma").resolve())
     client = chromadb.PersistentClient(path=persist_dir)
     return client.get_or_create_collection(name=COLLECTION_NAME, metadata={"hnsw:space": "cosine"})
 

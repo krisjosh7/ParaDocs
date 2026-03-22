@@ -1,118 +1,120 @@
 import { useState, useEffect, useRef } from 'react'
 import './LiveSession.css'
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
-const MOCK_TRANSCRIPT_LINES = [
-  { speaker: 'Attorney', text: "Hi, I'm Sarah Chen, I'll be representing you today. Before we start, just so you know this conversation may be recorded for our records — is that okay?" },
-  { speaker: 'Client',   text: "Yeah, that's totally fine." },
-  { speaker: 'Attorney', text: "Great. And can you just confirm your name and the address of the property in question?" },
-  { speaker: 'Client',   text: "Sure — Marcus Webb, 4410 Riverside Drive, Apartment 2B." },
-  { speaker: 'Attorney', text: "Perfect. Okay, tell me in your own words when you first noticed the problem." },
-  { speaker: 'Client',   text: "It started around June — there was black mold on the bathroom ceiling and the walls near the window." },
-  { speaker: 'Attorney', text: "Did you notify your landlord in writing at any point?" },
-  { speaker: 'Client',   text: "Yeah, I sent texts and I also sent an email in July. I have screenshots of everything." },
-  { speaker: 'Attorney', text: "And did he ever send anyone to fix it?" },
-  { speaker: 'Client',   text: "He kept saying he'd send someone but nobody ever came. This went on for months." },
-  { speaker: 'Attorney', text: "How long have you lived at that address overall?" },
-  { speaker: 'Client',   text: "About three years. Moved in October 2022." },
-  { speaker: 'Attorney', text: "You mentioned your daughter got sick — do you have medical records from that?" },
-  { speaker: 'Client',   text: "Yes, she was hospitalized in September. The doctor said it was likely mold-related. I have the discharge paperwork." },
-  { speaker: 'Attorney', text: "Good. And were you current on rent the entire time this was happening?" },
-  { speaker: 'Client',   text: "Every single month, never missed a payment. I have bank statements going back two years." },
-]
+async function fetchSurfaced(caseId, text, lineIndex, context = []) {
+  try {
+    const res = await fetch(`${API_BASE}/session/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_id: caseId, text, line_index: lineIndex, context }),
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.items ?? []).map((item) => ({
+      id: item.id,
+      afterLine: item.after_line,
+      type: item.type,
+      status: item.status,
+      label: item.label,
+      excerpt: item.excerpt ?? null,
+      relevance: item.relevance ?? null,
+      url: item.url ?? null,
+    }))
+  } catch {
+    return []
+  }
+}
 
-// afterLine is the 0-based index of the transcript line that triggers surfacing.
-// Lines 0-3 are intake/admin — nothing surfaces for those.
-const MOCK_SURFACED = [
-  {
-    id: 1,
-    afterLine: 5,  // client mentions mold in June
-    type: 'document',
-    status: 'hit',
-    label: 'lease_agreement.pdf — §12',
-    excerpt: '"Landlord shall maintain premises in habitable condition and remedy reported defects within 14 days of written notice."',
-    relevance: 0.94,
-  },
-  {
-    id: 2,
-    afterLine: 7,  // client mentions texts + email in July
-    type: 'document',
-    status: 'hit',
-    label: 'client_emails.pdf — Jul 14 2025',
-    excerpt: '"...the mold has been present for over a month and my family\'s health is at risk. Please send a repair crew this week."',
-    relevance: 0.91,
-  },
-  {
-    id: 3,
-    afterLine: 7,  // same trigger — written notice → habitability case law
-    type: 'caselaw',
-    status: 'hit',
-    label: 'Javins v. First National Realty (1970)',
-    excerpt: 'Landlord\'s failure to remedy reported habitability defects constitutes breach of the implied warranty of habitability.',
-    relevance: 0.88,
-  },
-  {
-    id: 4,
-    afterLine: 9,  // client says nobody came — triggers statute search
-    type: 'research',
-    status: 'searching',
-    label: 'Searching: landlord notice response time Virginia statute...',
-    excerpt: null,
-    relevance: null,
-  },
-  {
-    id: 5,
-    afterLine: 13, // client mentions hospitalization
-    type: 'document',
-    status: 'hit',
-    label: 'hospital_discharge.pdf — Sep 3 2025',
-    excerpt: '"Patient presented with respiratory symptoms consistent with prolonged mold exposure. Recommend immediate relocation."',
-    relevance: 0.96,
-  },
-  {
-    id: 6,
-    afterLine: 13, // same trigger — medical damages case law
-    type: 'caselaw',
-    status: 'hit',
-    label: 'Sargent v. Ross (NH 1973)',
-    excerpt: 'Landlord held liable for tenant medical damages when habitability defect was reported and ignored.',
-    relevance: 0.82,
-  },
-  {
-    id: 7,
-    afterLine: 15, // client confirms rent payments — tenant remedies statute
-    type: 'research',
-    status: 'hit',
-    label: 'VA Code § 55.1-1234 — Tenant remedies',
-    excerpt: 'Tenant may pursue rent escrow, repair-and-deduct, or termination of lease when landlord fails to remedy after written notice.',
-    relevance: 0.89,
-  },
-]
+async function transcribeChunk(blob) {
+  try {
+    const formData = new FormData()
+    formData.append('audio', blob, 'chunk.webm')
+    const res = await fetch(`${API_BASE}/session/transcribe`, { method: 'POST', body: formData })
+    if (!res.ok) return ''
+    const { text } = await res.json()
+    return text ?? ''
+  } catch {
+    return ''
+  }
+}
+
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SurfacedCard({ item, onJumpTo }) {
+function SurfacedCard({ item, onJumpTo, onDelete, onSave }) {
+  const [expanded, setExpanded] = useState(false)
+  const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const icons = { document: '📄', caselaw: '⚖️', research: '🔍' }
-  const isClickable = item.status !== 'searching' && item.afterLine != null
+  const isSearching = item.status === 'searching'
+  const canExpand = !isSearching
+  const canJump = !isSearching && item.afterLine != null
+
+  async function handleSave(e) {
+    e.stopPropagation()
+    setSaveState('saving')
+    const ok = await onSave(item)
+    setSaveState(ok ? 'saved' : 'error')
+  }
+
+  const saveLabel = { idle: '+ Save to context', saving: 'Saving…', saved: '✓ Saved', error: 'Failed' }
 
   return (
     <div
-      className={`surfaced-card surfaced-card--${item.status}${isClickable ? ' surfaced-card--clickable' : ''}`}
-      onClick={isClickable ? () => onJumpTo(item.afterLine) : undefined}
-      title={isClickable ? 'Jump to source in transcript' : undefined}
+      className={`surfaced-card surfaced-card--${item.status}${canExpand ? ' surfaced-card--clickable' : ''}${expanded ? ' surfaced-card--expanded' : ''}`}
+      onClick={canExpand ? () => setExpanded((e) => !e) : undefined}
     >
       <div className="surfaced-card-header">
-        <span className="surfaced-icon">{icons[item.type]}</span>
+        <span className="surfaced-icon">{icons[item.type] ?? '🔍'}</span>
         <span className="surfaced-label">{item.label}</span>
+        {item.type === 'caselaw' && (
+          <span className="surfaced-search-tag">case search</span>
+        )}
         {item.relevance && (
           <span className="surfaced-relevance">{Math.round(item.relevance * 100)}%</span>
         )}
-        {isClickable && <span className="surfaced-jump-hint">↑ jump</span>}
+        {isSearching && <div className="surfaced-spinner" aria-label="Searching" />}
+        {canJump && (
+          <button
+            className="surfaced-jump-btn"
+            onClick={(e) => { e.stopPropagation(); onJumpTo(item.afterLine) }}
+            title="Jump to source in transcript"
+          >
+            ↑ jump
+          </button>
+        )}
       </div>
-      {item.excerpt && <p className="surfaced-excerpt">{item.excerpt}</p>}
-      {item.status === 'searching' && (
-        <div className="surfaced-spinner" aria-label="Searching" />
+      {expanded && (
+        <div className="surfaced-card-body">
+          {item.excerpt && <p className="surfaced-excerpt">{item.excerpt}</p>}
+          {item.url && (
+            <a
+              className="surfaced-link"
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View full source ↗
+            </a>
+          )}
+          <div className="surfaced-card-actions">
+            <button
+              className={`surfaced-action-btn surfaced-action-btn--save${saveState === 'saved' ? ' surfaced-action-btn--done' : ''}${saveState === 'error' ? ' surfaced-action-btn--error' : ''}`}
+              onClick={handleSave}
+              disabled={saveState === 'saving' || saveState === 'saved'}
+            >
+              {saveLabel[saveState]}
+            </button>
+            <button
+              className="surfaced-action-btn surfaced-action-btn--delete"
+              onClick={(e) => { e.stopPropagation(); onDelete(item.id) }}
+            >
+              Remove
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -120,7 +122,9 @@ function SurfacedCard({ item, onJumpTo }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function LiveSession() {
+const CHUNK_MS = 5000 // record this many ms, stop, transcribe, restart
+
+export default function LiveSession({ caseId = 'demo-case' }) {
   const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState([])
   const [surfaced, setSurfaced] = useState([])
@@ -130,7 +134,32 @@ export default function LiveSession() {
   const lineRefsRef = useRef({})
   const lineIndexRef = useRef(0)
   const timerRef = useRef(null)
-  const lineTimerRef = useRef(null)
+  const streamRef = useRef(null)
+  const activeRef = useRef(false)    // true while session is live
+  const transcriptRef = useRef([])   // mirrors transcript state for use inside closures
+  const startTimeRef = useRef(null)  // wall-clock ms when recording began
+
+  function handleDelete(itemId) {
+    setSurfaced((s) => s.filter((item) => item.id !== itemId))
+  }
+
+  async function handleSave(item) {
+    try {
+      const res = await fetch(`${API_BASE}/session/save-to-context`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          case_id: caseId,
+          label: item.label,
+          excerpt: item.excerpt ?? '',
+          url: item.url ?? '',
+        }),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }
 
   function handleJumpTo(lineIndex) {
     const el = lineRefsRef.current[lineIndex]
@@ -145,47 +174,99 @@ export default function LiveSession() {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [transcript])
 
-  // Simulate transcript lines + surfacing during recording
-  useEffect(() => {
-    if (!isRecording) {
+  // Record one CHUNK_MS chunk, transcribe it, then restart if still active.
+  // Each stop/start cycle produces a complete standalone audio file that
+  // ffmpeg (and therefore Whisper) can decode without an EBML header issue.
+  function startChunk(stream) {
+    const chunks = []
+    const recorder = new MediaRecorder(stream)
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data)
+    }
+
+    recorder.onstop = async () => {
+      if (chunks.length > 0) {
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
+        const text = await transcribeChunk(blob)
+        if (text) {
+          const lineIndex = lineIndexRef.current
+          lineIndexRef.current += 1
+          const elapsedSec = startTimeRef.current ? Math.floor((Date.now() - startTimeRef.current) / 1000) : 0
+          const mm = String(Math.floor(elapsedSec / 60)).padStart(2, '0')
+          const ss = String(elapsedSec % 60).padStart(2, '0')
+          const speaker = `${mm}:${ss}`
+          const context = transcriptRef.current.slice(-2).map((l) => l.text)
+          transcriptRef.current = [...transcriptRef.current, { speaker, text }]
+          setTranscript((t) => [...t, { speaker, text }])
+
+          // Show a searching placeholder immediately
+          const searchingId = `searching-${lineIndex}`
+          const preview = text.length > 48 ? text.slice(0, 48) + '…' : text
+          setSurfaced((s) => [...s, {
+            id: searchingId,
+            afterLine: lineIndex,
+            type: 'research',
+            status: 'searching',
+            label: `Searching: ${preview}`,
+            excerpt: null,
+            relevance: null,
+            url: null,
+            reason: null,
+          }])
+
+          fetchSurfaced(caseId, text, lineIndex, context).then((items) => {
+            setSurfaced((s) => {
+              const without = s.filter((item) => item.id !== searchingId)
+              const existingIds = new Set(without.map((item) => item.id))
+              const fresh = items.filter((item) => !existingIds.has(item.id))
+              return [...without, ...fresh]
+            })
+          })
+        }
+      }
+      // Restart for next chunk if session is still active
+      if (activeRef.current) startChunk(stream)
+    }
+
+    recorder.start()
+    setTimeout(() => {
+      if (recorder.state === 'recording') recorder.stop()
+    }, CHUNK_MS)
+  }
+
+  async function handleToggle() {
+    if (isRecording) {
+      activeRef.current = false
+      startTimeRef.current = null
+      streamRef.current?.getTracks().forEach((t) => t.stop())
       clearInterval(timerRef.current)
-      clearInterval(lineTimerRef.current)
+      setIsRecording(false)
       return
     }
 
+    // Reset state
+    setTranscript([])
+    setSurfaced([])
+    setElapsed(0)
+    lineIndexRef.current = 0
+    transcriptRef.current = []
+
+    // Request microphone
+    let stream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch {
+      alert('Microphone access is required for live transcription.')
+      return
+    }
+    streamRef.current = stream
+    activeRef.current = true
+    startTimeRef.current = Date.now()
+
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
-
-    lineTimerRef.current = setInterval(() => {
-      const i = lineIndexRef.current
-      if (i < MOCK_TRANSCRIPT_LINES.length) {
-        setTranscript((t) => [...t, MOCK_TRANSCRIPT_LINES[i]])
-        lineIndexRef.current = i + 1
-
-        const toSurface = MOCK_SURFACED.filter((s) => s.afterLine === i)
-        toSurface.forEach((item, offset) => {
-          setTimeout(() => {
-            setSurfaced((s) => [...s, item])
-          }, 900 + offset * 600)
-        })
-      }
-    }, 3000)
-
-    return () => {
-      clearInterval(timerRef.current)
-      clearInterval(lineTimerRef.current)
-    }
-  }, [isRecording])
-
-  function handleToggle() {
-    if (isRecording) {
-      setIsRecording(false)
-    } else {
-      setTranscript([])
-      setSurfaced([])
-      setElapsed(0)
-      lineIndexRef.current = 0
-      setIsRecording(true)
-    }
+    startChunk(stream)
+    setIsRecording(true)
   }
 
   const mins = String(Math.floor(elapsed / 60)).padStart(2, '0')
@@ -244,7 +325,7 @@ export default function LiveSession() {
           ) : (
             <div className="surfaced-list">
               {surfaced.map((item) => (
-                <SurfacedCard key={item.id} item={item} onJumpTo={handleJumpTo} />
+                <SurfacedCard key={item.id} item={item} onJumpTo={handleJumpTo} onDelete={handleDelete} onSave={handleSave} />
               ))}
             </div>
           )}

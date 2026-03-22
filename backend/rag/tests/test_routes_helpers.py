@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from routes_rag import (
+from rag.router import (
     _claim_chunk_text,
     _dedupe_claims,
     _dedupe_events,

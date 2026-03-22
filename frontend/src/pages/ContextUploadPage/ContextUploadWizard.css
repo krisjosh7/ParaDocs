@@ -157,6 +157,11 @@
   color: #8a93a8;
 }
 
+.context-upload-wizard-foot--hint {
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+
 .context-upload-mode-row {
   display: flex;
   flex-wrap: wrap;

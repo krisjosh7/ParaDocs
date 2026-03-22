@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from fastapi import HTTPException
 
-from parser import parse_legal_structure
+from rag.parser import parse_legal_structure
 from schemas import Document
 
 
@@ -25,9 +25,9 @@ def _minimal_llm_json() -> str:
     )
 
 
-@patch("parser.ollama.chat")
-def test_parse_legal_structure_success(mock_chat) -> None:
-    mock_chat.return_value = {"message": {"content": _minimal_llm_json()}}
+@patch("rag.parser.generate_json")
+def test_parse_legal_structure_success(mock_gen) -> None:
+    mock_gen.return_value = _minimal_llm_json()
     doc = Document(
         case_id="case-p",
         doc_id="doc-p",
@@ -41,9 +41,9 @@ def test_parse_legal_structure_success(mock_chat) -> None:
     assert out.summary.text == "One sentence."
 
 
-@patch("parser.ollama.chat")
-def test_parse_legal_structure_invalid_json(mock_chat) -> None:
-    mock_chat.return_value = {"message": {"content": "not json {"}}
+@patch("rag.parser.generate_json")
+def test_parse_legal_structure_invalid_json(mock_gen) -> None:
+    mock_gen.return_value = "not json {"
     doc = Document(
         case_id="c",
         doc_id="d",
@@ -56,9 +56,9 @@ def test_parse_legal_structure_invalid_json(mock_chat) -> None:
     assert ei.value.status_code == 500
 
 
-@patch("parser.ollama.chat")
-def test_parse_legal_structure_ollama_failure(mock_chat) -> None:
-    mock_chat.side_effect = RuntimeError("connection refused")
+@patch("rag.parser.generate_json")
+def test_parse_legal_structure_groq_failure(mock_gen) -> None:
+    mock_gen.side_effect = RuntimeError("connection refused")
     doc = Document(
         case_id="c",
         doc_id="d",
@@ -69,11 +69,11 @@ def test_parse_legal_structure_ollama_failure(mock_chat) -> None:
     with pytest.raises(HTTPException) as ei:
         parse_legal_structure(doc)
     assert ei.value.status_code == 500
-    assert "Ollama" in str(ei.value.detail)
+    assert "Groq" in str(ei.value.detail)
 
 
-@patch("parser.ollama.chat")
-def test_parse_legal_structure_validation_failure(mock_chat) -> None:
+@patch("rag.parser.generate_json")
+def test_parse_legal_structure_validation_failure(mock_gen) -> None:
     bad = json.dumps(
         {
             "doc_id": "d",
@@ -86,7 +86,7 @@ def test_parse_legal_structure_validation_failure(mock_chat) -> None:
             "summary": {"text": "", "confidence": 0.0},
         }
     )
-    mock_chat.return_value = {"message": {"content": bad}}
+    mock_gen.return_value = bad
     doc = Document(
         case_id="c",
         doc_id="d",

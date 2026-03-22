@@ -4,8 +4,9 @@ import mimetypes
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -19,10 +20,12 @@ from context_catalog import (
     write_catalog,
     context_library_paths,
 )
+from storage import delete_stored_document_files
+from rag.context_rag import background_ingest_context_to_rag
 
 router = APIRouter(prefix="/cases/{case_id}/contexts", tags=["contexts"])
 
-ALLOWED_TYPES = frozenset({"text", "image", "video", "audio", "document"})
+ALLOWED_TYPES = frozenset({"text", "image", "video", "audio", "document", "research"})
 
 
 class ContextItemOut(BaseModel):
@@ -40,6 +43,7 @@ class ContextItemOut(BaseModel):
     documentSrc: str | None = None
     docSubtype: str | None = None
     uploadedFile: bool | None = None
+    sourceUrl: str | None = None
 
 
 class ContextListOut(BaseModel):
@@ -78,6 +82,8 @@ def _catalog_to_response_item(
     document_src = media_url if ctype == "document" and media_url else None
     doc_subtype = row.get("doc_subtype")
     ds = str(doc_subtype) if doc_subtype else None
+    src_url = row.get("source_url")
+    source_url_out = str(src_url).strip() if src_url else None
 
     return ContextItemOut(
         id=cid,
@@ -94,7 +100,26 @@ def _catalog_to_response_item(
         documentSrc=document_src,
         docSubtype=ds,
         uploadedFile=bool(stored_s),
+        sourceUrl=source_url_out if ctype == "research" and source_url_out else None,
     )
+
+
+def _parse_research_source_url(raw: str) -> str:
+    u = (raw or "").strip()
+    if not u:
+        raise HTTPException(status_code=400, detail="source_url is required for type research")
+    parsed = urlparse(u)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise HTTPException(status_code=400, detail="source_url must be a valid http(s) URL with a host")
+    return u
+
+
+def _default_title_from_research_url(url: str) -> str:
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").split("@")[-1]
+    if host:
+        return host
+    return "Research link"
 
 
 @router.get("", response_model=ContextListOut)
@@ -115,12 +140,14 @@ def list_contexts(case_id: str, request: Request, q: str | None = None) -> Conte
 async def create_context(
     case_id: str,
     request: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile | None = File(None),
     title: str = Form(""),
     caption: str = Form(""),
     context_type: str = Form(""),
     text_full: str = Form(""),
     doc_subtype: str = Form(""),
+    source_url: str = Form(""),
 ) -> ContextItemOut:
     try:
         validate_case_id(case_id)
@@ -148,6 +175,7 @@ async def create_context(
         "stored_file": None,
         "text_full": None,
         "doc_subtype": None,
+        "source_url": None,
     }
 
     if ctype == "text":
@@ -156,6 +184,10 @@ async def create_context(
             raise HTTPException(status_code=400, detail="text_full is required for type text")
         row["text_full"] = body
         row["title"] = title.strip() or "Untitled note"
+    elif ctype == "research":
+        url = _parse_research_source_url(source_url)
+        row["source_url"] = url
+        row["title"] = title.strip() or _default_title_from_research_url(url)
     else:
         if file is None or not file.filename:
             raise HTTPException(status_code=400, detail="file is required for non-text context types")
@@ -176,6 +208,9 @@ async def create_context(
 
     catalog.append(row)
     write_catalog(case_id, catalog)
+    # Research links are library-only; RAG for web material is handled by live session "Save to context".
+    if ctype != "research":
+        background_tasks.add_task(background_ingest_context_to_rag, case_id, dict(row))
     return _catalog_to_response_item(request, case_id, row)
 
 
@@ -208,6 +243,15 @@ def delete_context(case_id: str, item_id: str) -> dict[str, str]:
         except OSError:
             pass
 
+    rag_doc = found.get("rag_doc_id")
+    if rag_doc:
+        rid = str(rag_doc).strip()
+        if rid:
+            from rag.vector_store import delete_chunks_for_doc_id
+
+            delete_chunks_for_doc_id(rid)
+            delete_stored_document_files(case_id, rid)
+
     write_catalog(case_id, rest)
     return {"status": "deleted", "id": item_id}
 
@@ -236,4 +280,11 @@ def get_context_media(case_id: str, item_id: str):
 
     mime, _ = mimetypes.guess_type(str(fp))
     media_type = mime or "application/octet-stream"
-    return FileResponse(path=str(fp), filename=row.get("file_name") or fp.name, media_type=media_type)
+    # Omit filename so Starlette does not set Content-Disposition. Safari is prone to showing
+    # "Save As" for PDF iframes when inline responses include filename=; embed + fetch still work.
+    return FileResponse(
+        path=str(fp),
+        filename=None,
+        media_type=media_type,
+        content_disposition_type="inline",
+    )

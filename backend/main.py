@@ -7,11 +7,22 @@ from pathlib import Path
 from typing import Any, Union
 from uuid import uuid4
 
+from dotenv import load_dotenv
+
+_backend_dir = Path(__file__).resolve().parent
+load_dotenv(_backend_dir / ".env")
+load_dotenv(_backend_dir.parent / ".env")
+
 from fastapi import Body, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from routes_contexts import router as contexts_router
-from routes_rag import router as rag_router
+from routes_discovered import router as discovered_router
+from rag.router import router as rag_router
+
+# Routers — each subgraph registers its own router here
+from research.router import router as research_router
+from session.router import router as session_router
 
 app = FastAPI()
 SESSION_MEDIA_DIR = Path(tempfile.mkdtemp(prefix="paradocs-media-"))
@@ -29,6 +40,7 @@ app.add_middleware(
 app.mount("/media", StaticFiles(directory=SESSION_MEDIA_DIR), name="media")
 app.include_router(rag_router)
 app.include_router(contexts_router)
+app.include_router(discovered_router)
 
 
 def cleanup_session_media() -> None:
@@ -41,6 +53,10 @@ atexit.register(cleanup_session_media)
 @app.on_event("shutdown")
 def on_shutdown() -> None:
     cleanup_session_media()
+
+
+app.include_router(research_router)
+app.include_router(session_router)
 
 
 @app.get("/health")

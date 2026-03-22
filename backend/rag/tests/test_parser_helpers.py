@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from parser import _drop_ungrounded_spans, _normalize_parsed_dict
+from rag.parser import _drop_ungrounded_spans, _normalize_parsed_dict
 
 
 def test_normalize_flat_jurisdiction_and_summary() -> None:

@@ -24,7 +24,7 @@ from schemas import (
 
 
 def _chroma_count_doc(doc_id: str) -> int:
-    import vector_store
+    import rag.vector_store as vector_store
 
     col = vector_store.get_collection()
     res = col.get(where={"doc_id": doc_id})
@@ -32,7 +32,7 @@ def _chroma_count_doc(doc_id: str) -> int:
 
 
 def _chroma_count_case(case_id: str) -> int:
-    import vector_store
+    import rag.vector_store as vector_store
 
     col = vector_store.get_collection()
     res = col.get(where={"case_id": case_id})
@@ -269,7 +269,7 @@ def test_integration_structured_hits_match_summary_event_claim(client, rag_isola
 
 
 @pytest.mark.integration
-@patch("routes_rag.parse_legal_structure")
+@patch("rag.router.parse_legal_structure")
 def test_integration_store_writes_raw_document_and_ingests(mock_parse, client, rag_isolation) -> None:
     cases_root: Path = rag_isolation["cases"]
     mock_parse.return_value = StructuredDocument(
@@ -298,7 +298,7 @@ def test_integration_store_writes_raw_document_and_ingests(mock_parse, client, r
 
 @pytest.mark.integration
 def test_integration_duplicate_events_deduped_to_one_event_chunk(client, rag_isolation) -> None:
-    import vector_store
+    import rag.vector_store as vector_store
 
     case_id = "int-dedupe"
     doc_id = "int-dedupe-1"

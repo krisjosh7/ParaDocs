@@ -122,7 +122,7 @@ def test_query_filter_raw_only(client) -> None:
         assert ch["metadata"]["type"] == "raw"
 
 
-@patch("routes_rag.parse_legal_structure")
+@patch("rag.router.parse_legal_structure")
 def test_parse_endpoint_delegates(mock_parse, client, rag_isolation):
     mock_parse.return_value = StructuredDocument(
         doc_id="doc-pe",
@@ -145,7 +145,7 @@ def test_parse_endpoint_delegates(mock_parse, client, rag_isolation):
     mock_parse.assert_called_once()
 
 
-@patch("routes_rag.parse_legal_structure")
+@patch("rag.router.parse_legal_structure")
 def test_store_flow(mock_parse, client, rag_isolation):
     mock_parse.return_value = StructuredDocument(
         doc_id="ignored",

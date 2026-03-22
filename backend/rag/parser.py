@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-import os
 
-import ollama
 from fastapi import HTTPException
+
+from groq_llm import generate_json
 
 from schemas import Document, StructuredDocument
 
@@ -86,7 +86,6 @@ def _drop_ungrounded_spans(raw_text: str, data: dict) -> None:
 
 
 def parse_legal_structure(document: Document) -> StructuredDocument:
-    model_name = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
     user_prompt = (
         f"case_id={document.case_id}\n"
         f"doc_id={document.doc_id}\n"
@@ -96,19 +95,9 @@ def parse_legal_structure(document: Document) -> StructuredDocument:
         f"{document.raw_text}"
     )
     try:
-        response = ollama.chat(
-            model=model_name,
-            format="json",
-            options={"temperature": 0},
-            messages=[
-                {"role": "system", "content": PARSER_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
+        content = generate_json(PARSER_SYSTEM_PROMPT, user_prompt)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Ollama parse failure: {exc}") from exc
-
-    content = response.get("message", {}).get("content", "")
+        raise HTTPException(status_code=500, detail=f"Groq parse failure: {exc}") from exc
     try:
         data = json.loads(content)
     except json.JSONDecodeError as exc:

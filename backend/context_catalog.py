@@ -49,6 +49,23 @@ def write_catalog(case_id: str, items: list[dict]) -> None:
     paths["catalog"].write_text(json.dumps(items, indent=2), encoding="utf-8")
 
 
+def set_rag_doc_id_for_context(case_id: str, context_id: str, rag_doc_id: str) -> None:
+    """Persist the RAG store doc_id on a context row after background ingest (for cascade delete)."""
+    cid = (context_id or "").strip()
+    rid = (rag_doc_id or "").strip()
+    if not cid or not rid:
+        return
+    items = read_catalog(case_id)
+    changed = False
+    for row in items:
+        if str(row.get("id")) == cid:
+            row["rag_doc_id"] = rid
+            changed = True
+            break
+    if changed:
+        write_catalog(case_id, items)
+
+
 def format_added_label(iso_ts: str) -> str:
     try:
         raw = iso_ts.replace("Z", "+00:00")
@@ -80,6 +97,7 @@ def filter_items_by_query(items: list[dict], q: str | None) -> list[dict]:
         caption = str(it.get("caption", "")).lower()
         fname = str(it.get("file_name", "") or "").lower()
         body = str(it.get("text_full", "") or "").lower()
-        if needle in title or needle in caption or needle in fname or needle in body:
+        src_url = str(it.get("source_url", "") or "").lower()
+        if needle in title or needle in caption or needle in fname or needle in body or needle in src_url:
             out.append(it)
     return out

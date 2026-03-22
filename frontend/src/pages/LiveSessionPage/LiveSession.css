@@ -223,20 +223,31 @@
 
 .surfaced-card--clickable:hover {
   background: #3a4a66;
-  transform: translateX(-2px);
 }
 
-.surfaced-jump-hint {
+.surfaced-card--expanded {
+  background: #3a4a66;
+  border-color: rgba(232, 238, 252, 0.2);
+}
+
+
+.surfaced-jump-btn {
+  background: none;
+  border: 1px solid rgba(232, 238, 252, 0.2);
+  border-radius: 999px;
+  color: rgba(232, 238, 252, 0.45);
   font-size: 0.68rem;
   font-weight: 600;
-  color: rgba(232, 238, 252, 0.35);
   letter-spacing: 0.04em;
+  padding: 2px 7px;
+  cursor: pointer;
   flex-shrink: 0;
-  transition: color 120ms ease;
+  transition: color 120ms ease, border-color 120ms ease;
 }
 
-.surfaced-card--clickable:hover .surfaced-jump-hint {
-  color: rgba(232, 238, 252, 0.7);
+.surfaced-jump-btn:hover {
+  color: rgba(232, 238, 252, 0.85);
+  border-color: rgba(232, 238, 252, 0.45);
 }
 
 .surfaced-card-header {
@@ -259,6 +270,18 @@
   line-height: 1.3;
 }
 
+.surfaced-search-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #92400e;
+  background: rgba(250, 204, 21, 0.2);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  padding: 1px 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
 .surfaced-relevance {
   font-size: 0.72rem;
   font-weight: 700;
@@ -269,12 +292,88 @@
   flex-shrink: 0;
 }
 
+.surfaced-card-body {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: line-in 150ms ease;
+}
+
+.surfaced-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.surfaced-action-btn {
+  flex: 1;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 120ms ease, opacity 120ms ease;
+}
+
+.surfaced-action-btn--save {
+  background: rgba(99, 179, 237, 0.15);
+  border-color: rgba(99, 179, 237, 0.35);
+  color: #90cdf4;
+}
+
+.surfaced-action-btn--save:hover:not(:disabled) {
+  background: rgba(99, 179, 237, 0.25);
+}
+
+.surfaced-action-btn--save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.surfaced-action-btn--done {
+  background: rgba(110, 231, 183, 0.15);
+  border-color: rgba(110, 231, 183, 0.35);
+  color: #6ee7b7;
+}
+
+.surfaced-action-btn--error {
+  background: rgba(255, 95, 95, 0.15);
+  border-color: rgba(255, 95, 95, 0.35);
+  color: #ff5f5f;
+}
+
+.surfaced-action-btn--delete {
+  background: rgba(232, 238, 252, 0.06);
+  border-color: rgba(232, 238, 252, 0.15);
+  color: rgba(232, 238, 252, 0.5);
+}
+
+.surfaced-action-btn--delete:hover {
+  background: rgba(255, 95, 95, 0.12);
+  border-color: rgba(255, 95, 95, 0.3);
+  color: #ff9090;
+}
+
 .surfaced-excerpt {
   margin: 0;
   font-size: 0.82rem;
   line-height: 1.45;
   color: rgba(232, 238, 252, 0.6);
   font-style: italic;
+}
+
+.surfaced-link {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: rgba(140, 180, 255, 0.85);
+  text-decoration: none;
+}
+.surfaced-link:hover {
+  text-decoration: underline;
+  color: rgba(140, 180, 255, 1);
 }
 
 .surfaced-spinner {

@@ -40,10 +40,9 @@
 }
 
 .context-page-heading {
-  max-width: 1100px;
   width: 100%;
+  max-width: none;
   margin: 0;
-  margin-inline: 0 auto;
   text-align: left;
 }
 
@@ -94,6 +93,32 @@
   align-items: center;
   width: 100%;
   padding-bottom: 8px;
+}
+
+.context-gallery-empty {
+  width: min(100%, 1100px);
+  margin-inline: auto;
+  padding: 48px 24px 56px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.context-gallery-empty-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: rgba(232, 238, 252, 0.92);
+  letter-spacing: 0.02em;
+}
+
+.context-gallery-empty-hint {
+  margin: 12px 0 0;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: rgba(232, 238, 252, 0.5);
+  max-width: 28rem;
+  margin-inline: auto;
 }
 
 /* Gallery + pagination stay visible under upload wizard; overlay sits on top */
@@ -193,6 +218,7 @@
 }
 
 .context-card {
+  position: relative;
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -204,7 +230,38 @@
   border: 1px solid #e6dcc4;
   box-shadow: 0 10px 28px rgba(5, 10, 24, 0.22);
   overflow: hidden;
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.context-card--selected {
+  border-color: rgba(100, 149, 237, 0.85);
+  box-shadow: 0 10px 28px rgba(70, 110, 200, 0.28);
+}
+
+.context-card-select {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 10px rgba(5, 10, 24, 0.2);
+  cursor: pointer;
+}
+
+.context-card-select-input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #4a6fd4;
 }
 
 .context-card:hover {
@@ -226,6 +283,12 @@
   text-align: left;
   font: inherit;
   color: inherit;
+  outline: none;
+}
+
+.context-card-hit:focus-visible {
+  outline: 2px solid rgba(100, 149, 237, 0.95);
+  outline-offset: 2px;
 }
 
 .context-card-preview {
@@ -316,7 +379,7 @@
   top: 0;
 }
 
-/* Grid cards use a <button>; keep iframe non-interactive to preserve card click. */
+/* Grid cards: keep iframe non-interactive so the card hit target receives the click. */
 .context-card-hit .context-card-preview--pdf iframe {
   pointer-events: none;
 }
@@ -367,6 +430,76 @@
   font-weight: 600;
   text-align: center;
   word-break: break-word;
+}
+
+.context-card-preview--research {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: linear-gradient(145deg, #1e2d4d 0%, #152238 100%);
+  border-bottom: 1px solid rgba(232, 238, 252, 0.08);
+}
+
+.context-research-preview-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  max-width: 100%;
+}
+
+.context-research-preview-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+  opacity: 0.9;
+}
+
+.context-research-preview-host {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(232, 238, 252, 0.88);
+  word-break: break-word;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.context-research-url-line {
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+.context-research-url-text {
+  color: rgba(120, 170, 255, 0.95);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.context-research-open-wrap {
+  margin: 0;
+}
+
+.context-research-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: #0f172a;
+  background: #e8eefc;
+  text-decoration: none;
+  border: 1px solid rgba(232, 238, 252, 0.35);
+}
+
+.context-research-open-btn:hover {
+  background: #fff;
 }
 
 .context-card-preview--docx {
@@ -813,34 +946,131 @@
   color: #1c2744;
 }
 
-.context-page-search-row {
-  margin-top: 14px;
-  max-width: 420px;
-}
-
-.context-page-search-label {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(232, 238, 252, 0.5);
-  margin-bottom: 6px;
-}
-
-.context-page-search-input {
+.context-page-heading-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
   width: 100%;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(232, 238, 252, 0.2);
-  background: rgba(5, 10, 24, 0.35);
-  color: #e8eefc;
-  font-size: 0.95rem;
 }
 
-.context-page-search-input::placeholder {
-  color: rgba(232, 238, 252, 0.35);
+.context-page-heading-top .header-context-kicker {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.context-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.context-heading-actions:empty {
+  display: none;
+}
+
+.context-header-text-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 238, 252, 0.28);
+  background: rgba(232, 238, 252, 0.08);
+  color: #e8eefc;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, opacity 140ms ease, color 140ms ease;
+}
+
+.context-header-text-btn:hover:not(:disabled) {
+  background: rgba(232, 238, 252, 0.16);
+  border-color: rgba(232, 238, 252, 0.42);
+}
+
+.context-header-text-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.context-header-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 238, 252, 0.28);
+  background: rgba(232, 238, 252, 0.08);
+  color: #e8eefc;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, opacity 140ms ease, color 140ms ease;
+}
+
+.context-header-icon-btn:hover:not(:disabled) {
+  background: rgba(232, 238, 252, 0.16);
+  border-color: rgba(232, 238, 252, 0.42);
+}
+
+.context-header-icon-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.context-header-icon-btn--danger:not(:disabled) {
+  border-color: rgba(220, 120, 120, 0.45);
+  color: #ffc9c9;
+}
+
+.context-header-icon-btn--danger:hover:not(:disabled) {
+  background: rgba(180, 48, 48, 0.35);
+  border-color: rgba(255, 180, 180, 0.4);
+  color: #fff;
+}
+
+.context-header-icon-svg {
+  display: block;
+}
+
+.context-header-selection-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  margin-right: 2px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #1c2744;
+  background: #f6f3ea;
+  border: 1px solid #e6dcc4;
+}
+
+.context-header-icon-spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(232, 238, 252, 0.25);
+  border-top-color: #e8eefc;
+  animation: context-header-spin 0.65s linear infinite;
+}
+
+@keyframes context-header-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .context-page-list-error {
@@ -855,6 +1085,48 @@
   max-width: 1100px;
   font-size: 0.88rem;
   color: rgba(232, 238, 252, 0.55);
+}
+
+.context-page-list-error--subtle {
+  color: rgba(255, 200, 120, 0.95);
+}
+
+.context-type-pill--discovery {
+  text-transform: lowercase;
+}
+
+/* Saved web sources: same fixed preview height as other cards; favicon fills the band */
+.context-card-preview--saved-web {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a2338;
+  overflow: hidden;
+}
+
+.context-saved-web-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  background: #121a2e;
+}
+
+.context-saved-web-preview-fallback {
+  font-size: 1.75rem;
+  line-height: 1;
+  opacity: 0.95;
+  user-select: none;
+}
+
+a.context-card-hit--discovered-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.context-card-hit--no-url {
+  cursor: default;
+  opacity: 0.92;
 }
 
 @media (max-width: 900px) {

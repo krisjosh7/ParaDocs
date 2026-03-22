@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import embedding
+import rag.embedding as embedding
 
 
 @pytest.fixture(autouse=True)

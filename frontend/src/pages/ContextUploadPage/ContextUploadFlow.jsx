@@ -4,6 +4,7 @@ import {
   formatAddedLabelNow,
   inferDocumentSubtypeFromFile,
   inferContextTypeFromFile,
+  isValidResearchUrl,
   makeTextPreview,
   newContextId,
 } from './contextUploadHelpers'
@@ -155,6 +156,129 @@ export function TextUploadFlow({ open, onClose, onAddItem }) {
                 type="button"
                 className="context-upload-btn context-upload-btn--primary"
                 disabled={!draft.body.trim()}
+                onClick={handleAdd}
+              >
+                Add to library
+              </button>
+            </div>
+            <p className="context-upload-wizard-foot">Press Esc to cancel.</p>
+          </>
+        )}
+      </section>
+    </ContextUploadWizardShell>
+  )
+}
+
+/** Two-step wizard: source URL → title + optional caption */
+export function ResearchUploadFlow({ open, onClose, onAddItem }) {
+  const [step, setStep] = useState(1)
+  const [draft, setDraft] = useState({ sourceUrl: '', title: '', caption: '' })
+
+  useEffect(() => {
+    if (!open) return
+    setStep(1)
+    setDraft({ sourceUrl: '', title: '', caption: '' })
+  }, [open])
+
+  const handleAdd = useCallback(async () => {
+    const sourceUrl = draft.sourceUrl.trim()
+    if (!isValidResearchUrl(sourceUrl)) return
+    const title = draft.title.trim() || 'Research link'
+    const caption = draft.caption.trim()
+    const newItem = {
+      id: newContextId(),
+      type: 'research',
+      title,
+      addedLabel: formatAddedLabelNow(),
+      sourceUrl,
+      ...(caption ? { caption } : {}),
+    }
+    try {
+      await onAddItem(newItem)
+      onClose()
+    } catch {
+      // Parent surfaces error; keep wizard open
+    }
+  }, [draft, onAddItem, onClose])
+
+  const canContinueUrl = isValidResearchUrl(draft.sourceUrl.trim())
+
+  return (
+    <ContextUploadWizardShell open={open} onDismiss={onClose}>
+      <section
+        className="context-upload-wizard"
+        aria-label={step === 1 ? 'Add research link' : 'Title and caption'}
+      >
+        <h3 id="context-upload-dialog-title" className="context-upload-wizard-title">
+          {step === 1 ? 'Add research link' : 'Title & caption'}
+        </h3>
+        {step === 1 ? (
+          <>
+            <label className="context-upload-label" htmlFor="context-research-url">
+              Source URL
+            </label>
+            <input
+              id="context-research-url"
+              type="url"
+              inputMode="url"
+              autoComplete="url"
+              className="context-upload-input"
+              value={draft.sourceUrl}
+              onChange={(e) => setDraft((d) => ({ ...d, sourceUrl: e.target.value }))}
+              placeholder="https://…"
+              autoFocus
+            />
+            <p className="context-upload-wizard-foot context-upload-wizard-foot--hint">
+              Use the page where you found the material (opinion, article, docket, etc.).
+            </p>
+            <div className="context-upload-wizard-actions">
+              <button type="button" className="context-upload-btn context-upload-btn--ghost" onClick={onClose}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="context-upload-btn context-upload-btn--primary"
+                disabled={!canContinueUrl}
+                onClick={() => setStep(2)}
+              >
+                Continue
+              </button>
+            </div>
+            <p className="context-upload-wizard-foot">Press Esc to cancel.</p>
+          </>
+        ) : (
+          <>
+            <label className="context-upload-label" htmlFor="context-research-title">
+              Title
+            </label>
+            <input
+              id="context-research-title"
+              type="text"
+              className="context-upload-input"
+              value={draft.title}
+              onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+              placeholder="e.g. Smith v. Jones — CourtListener"
+              autoFocus
+            />
+            <label className="context-upload-label" htmlFor="context-research-caption">
+              Caption <span className="context-upload-optional">(optional)</span>
+            </label>
+            <textarea
+              id="context-research-caption"
+              className="context-upload-textarea"
+              value={draft.caption}
+              onChange={(e) => setDraft((d) => ({ ...d, caption: e.target.value }))}
+              placeholder="Why this source matters…"
+              rows={4}
+            />
+            <div className="context-upload-wizard-actions">
+              <button type="button" className="context-upload-btn context-upload-btn--ghost" onClick={() => setStep(1)}>
+                Back
+              </button>
+              <button
+                type="button"
+                className="context-upload-btn context-upload-btn--primary"
+                disabled={!isValidResearchUrl(draft.sourceUrl.trim())}
                 onClick={handleAdd}
               >
                 Add to library

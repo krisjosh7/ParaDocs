@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from chunking import chunk_text
+from rag.chunking import chunk_text
 
 
 def test_chunk_text_empty() -> None:

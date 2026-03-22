@@ -1,29 +1,21 @@
 from __future__ import annotations
 
-import os
-import urllib.error
-import urllib.request
+from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
 
-
-def ollama_server_reachable(timeout_s: float = 1.5) -> bool:
-    try:
-        req = urllib.request.Request(
-            "http://127.0.0.1:11434/api/tags",
-            method="GET",
-            headers={"Accept": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-            return resp.status == 200
-    except (OSError, urllib.error.URLError, TimeoutError):
-        return False
+_backend = Path(__file__).resolve().parents[2]
+load_dotenv(_backend / ".env")
+load_dotenv(_backend.parent / ".env")
 
 
 @pytest.fixture
-def require_ollama() -> None:
-    if not ollama_server_reachable():
-        pytest.skip("Ollama not reachable at http://127.0.0.1:11434")
+def require_groq() -> None:
+    import os
+
+    if not os.environ.get("GROQ_API_KEY", "").strip():
+        pytest.skip("GROQ_API_KEY not set — add to backend/.env")
 
 
 @pytest.fixture
@@ -36,7 +28,7 @@ def rag_isolation(monkeypatch, tmp_path):
     monkeypatch.setenv("CHROMA_PERSIST_DIR", str(chroma_dir))
     monkeypatch.setenv("CASES_ROOT", str(cases_dir))
 
-    import vector_store
+    import rag.vector_store as vector_store
 
     vector_store.get_collection.cache_clear()
 

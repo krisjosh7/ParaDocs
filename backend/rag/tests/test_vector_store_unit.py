@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import vector_store
+import rag.vector_store as vector_store
 
 
 def test_distance_to_score() -> None:
