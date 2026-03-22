@@ -33,9 +33,9 @@ export default function MainContent({
           type="button"
           className="header-try-cta"
           onClick={() => navigate('/chat')}
-          aria-label="Try assistant (opens chat)"
+          aria-label="Try Lex (opens chat)"
         >
-          <span className="header-try-cta__label">Try …</span>
+          <span className="header-try-cta__label">Try Lex</span>
         </button>
       </div>
 

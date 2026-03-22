@@ -620,9 +620,9 @@ export default function ChatPage({ cases = [], apiBase = DEFAULT_API }) {
                     <div className="chat-hero-mark">
                       <ChatHeroMark />
                     </div>
-                    <h2 className="chat-hero-title">Welcome</h2>
+                    <h2 className="chat-hero-title">Welcome to Lex</h2>
                     <p className="chat-hero-sub">
-                      Ask anything about your case documents—or turn off case context for a general conversation.
+                      Ask Lex anything about your case documents—or turn off case context for a general conversation.
                     </p>
                   </header>
                 </div>

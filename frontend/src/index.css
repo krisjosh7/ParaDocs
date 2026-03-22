@@ -178,7 +178,7 @@ body {
   flex-shrink: 0;
 }
 
-/* Anthropic-style high-contrast CTA → /chat */
+/* Gold primary CTA → /chat (matches Create case + chat send; navy page reads as the blue) */
 .header-try-cta {
   display: inline-flex;
   align-items: center;
@@ -186,28 +186,29 @@ body {
   flex-shrink: 0;
   height: 44px;
   padding: 0 22px;
-  border: none;
+  border: 1px solid rgba(184, 148, 62, 0.55);
   border-radius: 999px;
-  background: #0c0e12;
-  color: #fafafa;
+  background: linear-gradient(180deg, #d4b04e 0%, #b8943e 100%);
+  color: #1a1f2e;
   font-size: 0.9rem;
   font-weight: 600;
   font-family: inherit;
   letter-spacing: 0.01em;
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
-  transition: background-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  box-shadow: 0 2px 8px rgba(184, 148, 62, 0.35);
+  transition: filter 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
 .header-try-cta:hover {
-  background: #1a1f28;
+  filter: brightness(1.05);
   transform: translateY(-1px);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 14px rgba(184, 148, 62, 0.4);
 }
 
 .header-try-cta:active {
   transform: translateY(0);
+  filter: brightness(0.98);
 }
 
 .header-try-cta__label {
