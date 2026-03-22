@@ -58,3 +58,21 @@ def write_metadata(case_id: str, doc_id: str, metadata: dict) -> Path:
     out = paths["metadata"] / f"{doc_id}.json"
     out.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     return out
+
+
+def delete_stored_document_files(case_id: str, doc_id: str) -> None:
+    """Remove documents/structured/metadata files for a RAG doc_id (best-effort)."""
+    doc_id = (doc_id or "").strip()
+    if not doc_id or ".." in doc_id or "/" in doc_id or "\\" in doc_id:
+        return
+    base = default_cases_root() / case_id
+    for sub, ext in (
+        ("documents", ".txt"),
+        ("structured", ".json"),
+        ("metadata", ".json"),
+    ):
+        fp = base / sub / f"{doc_id}{ext}"
+        try:
+            fp.unlink(missing_ok=True)
+        except OSError:
+            pass

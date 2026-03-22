@@ -98,3 +98,47 @@ def test_delete_item(client: TestClient) -> None:
     d = client.delete(f"/cases/case-c/contexts/{iid}")
     assert d.status_code == 200
     assert client.get("/cases/case-c/contexts").json()["items"] == []
+
+
+def test_delete_cascades_rag_doc_id(
+    client: TestClient, cases_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deleting a context row with rag_doc_id removes Chroma + documents/structured/metadata for that id."""
+    deleted_chunks: list[str] = []
+
+    def _capture_delete(doc_id: str) -> None:
+        deleted_chunks.append(doc_id)
+
+    monkeypatch.setattr("rag.vector_store.delete_chunks_for_doc_id", _capture_delete)
+
+    from context_catalog import write_catalog
+
+    case_id = "case-rag-cascade"
+    rag_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    row = {
+        "id": "ctx-rag-1",
+        "type": "text",
+        "title": "T",
+        "caption": "",
+        "added_at": "2020-01-01T00:00:00+00:00",
+        "file_name": None,
+        "stored_file": None,
+        "text_full": "hello",
+        "doc_subtype": None,
+        "rag_doc_id": rag_id,
+    }
+    write_catalog(case_id, [row])
+
+    base = cases_root / case_id
+    for sub in ("documents", "structured", "metadata"):
+        (base / sub).mkdir(parents=True, exist_ok=True)
+    (base / "documents" / f"{rag_id}.txt").write_text("raw", encoding="utf-8")
+    (base / "structured" / f"{rag_id}.json").write_text("{}", encoding="utf-8")
+    (base / "metadata" / f"{rag_id}.json").write_text("{}", encoding="utf-8")
+
+    r = client.delete(f"/cases/{case_id}/contexts/ctx-rag-1")
+    assert r.status_code == 200
+    assert deleted_chunks == [rag_id]
+    assert not (base / "documents" / f"{rag_id}.txt").is_file()
+    assert not (base / "structured" / f"{rag_id}.json").is_file()
+    assert not (base / "metadata" / f"{rag_id}.json").is_file()

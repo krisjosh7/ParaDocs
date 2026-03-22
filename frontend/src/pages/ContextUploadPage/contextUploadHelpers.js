@@ -54,8 +54,20 @@ export function inferDocumentSubtypeFromFile(file) {
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
 
+function inferDocSubtypeFromName(name) {
+  if (!name || typeof name !== 'string') return undefined
+  const lower = name.toLowerCase()
+  if (lower.endsWith('.pdf')) return 'pdf'
+  if (lower.endsWith('.docx')) return 'docx'
+  return undefined
+}
+
 export function normalizeContextItemFromApi(row) {
   if (!row || typeof row !== 'object') return null
+  let docSubtype = row.docSubtype ?? undefined
+  if (row.type === 'document' && !docSubtype) {
+    docSubtype = inferDocSubtypeFromName(row.fileName) || inferDocSubtypeFromName(row.title)
+  }
   const item = {
     id: row.id,
     type: row.type,
@@ -65,7 +77,7 @@ export function normalizeContextItemFromApi(row) {
     fileName: row.fileName ?? undefined,
     textPreview: row.textPreview ?? undefined,
     textFull: row.textFull ?? undefined,
-    docSubtype: row.docSubtype ?? undefined,
+    docSubtype,
     uploadedFile: row.uploadedFile,
   }
   if (row.imageSrc) item.imageSrc = row.imageSrc
@@ -145,3 +157,21 @@ export async function createFileContext(caseId, file, { type, title, caption, do
   return normalizeContextItemFromApi(payload)
 }
 
+export async function deleteContextItem(caseId, itemId) {
+  const res = await fetch(
+    `${API_BASE}/cases/${encodeURIComponent(caseId)}/contexts/${encodeURIComponent(itemId)}`,
+    { method: 'DELETE' },
+  )
+  let payload = null
+  try {
+    payload = await res.json()
+  } catch {
+    payload = null
+  }
+  if (!res.ok) {
+    throw new Error(
+      typeof payload?.detail === 'string' ? payload.detail : `Delete failed (${res.status})`,
+    )
+  }
+  return true
+}

@@ -5,6 +5,7 @@ import DocxPreview from './DocxPreview'
 import {
   createFileContext,
   createTextContext,
+  deleteContextItem,
   fetchContextsForCase,
 } from './contextUploadHelpers'
 import './ContextUploadPage.css'
@@ -20,6 +21,67 @@ const TYPE_LABELS = {
 }
 
 const PAGE_SIZE = 12
+
+function IconSelectMode() {
+  return (
+    <svg
+      className="context-header-icon-svg"
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="4" y="4" width="16" height="16" rx="2.5" />
+    </svg>
+  )
+}
+
+function IconTrash() {
+  return (
+    <svg
+      className="context-header-icon-svg"
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+      <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  )
+}
+
+function IconClose() {
+  return (
+    <svg
+      className="context-header-icon-svg"
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  )
+}
+
 /** Must match CSS breakpoints: 3 cols default, 2 cols <=900px, 1 col <=560px */
 function getGalleryRowsForPage(itemCount) {
   const count = Math.max(1, itemCount)
@@ -274,7 +336,11 @@ function ContextPreview({ item, compact, inModal }) {
   if (item.type === 'pdf') {
     return (
       <div className={`context-card-preview context-card-preview--pdf ${compact ? 'context-card-preview--compact' : ''}`}>
-        <iframe title={`PDF preview: ${item.title}`} src={item.pdfSrc} />
+        <iframe
+          title={`PDF preview: ${item.title}`}
+          src={item.pdfSrc}
+          loading={compact ? 'lazy' : undefined}
+        />
       </div>
     )
   }
@@ -282,14 +348,18 @@ function ContextPreview({ item, compact, inModal }) {
     if (item.docSubtype === 'pdf' && item.documentSrc) {
       return (
         <div className={`context-card-preview context-card-preview--pdf ${compact ? 'context-card-preview--compact' : ''}`}>
-          <iframe title={`Document preview: ${item.title}`} src={item.documentSrc} />
+          <iframe
+            title={`Document preview: ${item.title}`}
+            src={item.documentSrc}
+            loading={compact ? 'lazy' : undefined}
+          />
         </div>
       )
     }
     if (item.docSubtype === 'docx' && item.documentSrc) {
       return (
         <div className={`context-card-preview context-card-preview--docx ${compact ? 'context-card-preview--compact' : ''}`}>
-          <DocxPreview src={item.documentSrc} title={item.title} />
+          <DocxPreview src={item.documentSrc} title={item.title} lazy={Boolean(compact)} />
         </div>
       )
     }
@@ -306,15 +376,6 @@ function ContextPreview({ item, compact, inModal }) {
   )
 }
 
-function useDebouncedValue(value, ms) {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), ms)
-    return () => clearTimeout(t)
-  }, [value, ms])
-  return debounced
-}
-
 export default function ContextUploadPage({ onBack, caseId }) {
   const [contextItems, setContextItems] = useState([])
   const [expandedId, setExpandedId] = useState(null)
@@ -326,10 +387,13 @@ export default function ContextUploadPage({ onBack, caseId }) {
   const [audioUploadOpen, setAudioUploadOpen] = useState(false)
   const [fileUploadOpen, setFileUploadOpen] = useState(false)
 
-  const [searchInput, setSearchInput] = useState('')
-  const debouncedSearch = useDebouncedValue(searchInput, 300)
   const [listLoading, setListLoading] = useState(false)
   const [listError, setListError] = useState('')
+  const [selectedIds, setSelectedIds] = useState([])
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
   const refreshContexts = useCallback(async () => {
     if (!caseId?.trim()) {
@@ -339,7 +403,7 @@ export default function ContextUploadPage({ onBack, caseId }) {
     setListLoading(true)
     setListError('')
     try {
-      const items = await fetchContextsForCase(caseId.trim(), { q: debouncedSearch })
+      const items = await fetchContextsForCase(caseId.trim())
       setContextItems(items)
     } catch (e) {
       setListError(e instanceof Error ? e.message : 'Failed to load contexts')
@@ -347,11 +411,61 @@ export default function ContextUploadPage({ onBack, caseId }) {
     } finally {
       setListLoading(false)
     }
-  }, [caseId, debouncedSearch])
+  }, [caseId])
 
   useEffect(() => {
     refreshContexts()
   }, [refreshContexts])
+
+  useEffect(() => {
+    setSelectedIds([])
+    setSelectionMode(false)
+  }, [caseId])
+
+  const toggleSelectionMode = useCallback(() => {
+    setSelectionMode((prev) => {
+      if (prev) setSelectedIds([])
+      return !prev
+    })
+  }, [])
+
+  const toggleSelectId = useCallback((id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return [...next]
+    })
+  }, [])
+
+  const handleBulkDelete = useCallback(async () => {
+    if (!caseId?.trim() || selectedIds.length === 0 || bulkDeleting) return
+    const n = selectedIds.length
+    const ok = window.confirm(
+      `Delete ${n} selected context${n === 1 ? '' : 's'}? This cannot be undone.`,
+    )
+    if (!ok) return
+    const cid = caseId.trim()
+    const ids = [...selectedIds]
+    setBulkDeleting(true)
+    setListError('')
+    try {
+      const results = await Promise.allSettled(ids.map((itemId) => deleteContextItem(cid, itemId)))
+      const failed = results.filter((r) => r.status === 'rejected')
+      if (failed.length === results.length) {
+        setListError('Could not delete selected items.')
+      } else if (failed.length > 0) {
+        setListError(`Some items could not be deleted (${failed.length} failed).`)
+      }
+      if (expandedId && ids.includes(expandedId)) setExpandedId(null)
+      setSelectedIds([])
+      await refreshContexts()
+    } catch (e) {
+      setListError(e instanceof Error ? e.message : 'Delete failed')
+    } finally {
+      setBulkDeleting(false)
+    }
+  }, [bulkDeleting, caseId, expandedId, refreshContexts, selectedIds])
 
   const totalPages = Math.max(1, Math.ceil(contextItems.length / PAGE_SIZE))
   const boundedPage = Math.min(pageIndex, totalPages - 1)
@@ -497,6 +611,9 @@ export default function ContextUploadPage({ onBack, caseId }) {
   /** True while any add-context wizard is open (text today; extend for audio/file). */
   const inUploadFlow = textUploadOpen || audioUploadOpen || fileUploadOpen
 
+  const showEmptyLibrary =
+    Boolean(caseId?.trim()) && !listLoading && !listError && contextItems.length === 0
+
   return (
     <>
       <div className="layout-body">
@@ -510,23 +627,59 @@ export default function ContextUploadPage({ onBack, caseId }) {
               </p>
             ) : null}
             <header className="context-page-heading">
-              <p className="header-context-kicker">CONTEXT LIBRARY</p>
-              {caseId ? (
-                <div className="context-page-search-row">
-                  <label className="context-page-search-label" htmlFor="context-search-q">
-                    Search contexts
-                  </label>
-                  <input
-                    id="context-search-q"
-                    type="search"
-                    className="context-page-search-input"
-                    placeholder="Filter by title, caption, or text…"
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-              ) : null}
+              <div className="context-page-heading-top">
+                <p className="header-context-kicker">CONTEXT LIBRARY</p>
+                {caseId ? (
+                  <div className="context-heading-actions" role="toolbar" aria-label="Context library actions">
+                    {!selectionMode ? (
+                      <button
+                        type="button"
+                        className="context-header-icon-btn"
+                        onClick={toggleSelectionMode}
+                        aria-label="Select multiple contexts"
+                      >
+                        <IconSelectMode />
+                      </button>
+                    ) : (
+                      <>
+                        {selectedIds.length > 0 ? (
+                          <span className="context-header-selection-count" aria-live="polite">
+                            {selectedIds.length}
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="context-header-icon-btn context-header-icon-btn--danger"
+                          onClick={() => {
+                            void handleBulkDelete()
+                          }}
+                          disabled={bulkDeleting || selectedIds.length === 0}
+                          aria-label={
+                            bulkDeleting
+                              ? 'Deleting selected contexts'
+                              : 'Delete selected contexts'
+                          }
+                        >
+                          {bulkDeleting ? (
+                            <span className="context-header-icon-spinner" aria-hidden />
+                          ) : (
+                            <IconTrash />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          className="context-header-icon-btn"
+                          onClick={toggleSelectionMode}
+                          disabled={bulkDeleting}
+                          aria-label="Exit selection mode"
+                        >
+                          <IconClose />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </header>
             {listError ? (
               <p className="context-page-list-error" role="alert">
@@ -543,6 +696,15 @@ export default function ContextUploadPage({ onBack, caseId }) {
           >
             <div className="context-library-stack-main" inert={inUploadFlow}>
               <div className="context-gallery-wrap">
+                {showEmptyLibrary ? (
+                  <div className="context-gallery-empty" role="status">
+                    <p className="context-gallery-empty-title">No documents in this library yet</p>
+                    <p className="context-gallery-empty-hint">
+                      Add context using the + button — images, video, audio, files, or notes.
+                    </p>
+                  </div>
+                ) : (
+                  <>
                 <div
                   className="context-gallery"
                   aria-live="polite"
@@ -553,13 +715,52 @@ export default function ContextUploadPage({ onBack, caseId }) {
                   }}
                 >
                   {pageSlice.map((item) => (
-                    <article key={item.id} className="context-card" data-context-id={item.id}>
-                      <button
-                        type="button"
+                    <article
+                      key={item.id}
+                      className={[
+                        'context-card',
+                        selectionMode ? 'context-card--selection-mode' : '',
+                        selectedSet.has(item.id) ? 'context-card--selected' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      data-context-id={item.id}
+                    >
+                      {selectionMode ? (
+                        <label
+                          className="context-card-select"
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            className="context-card-select-input"
+                            checked={selectedSet.has(item.id)}
+                            onChange={() => toggleSelectId(item.id)}
+                            aria-label={`Select ${item.title}`}
+                          />
+                        </label>
+                      ) : null}
+                      {/* div+role="button": <iframe> inside <button> is invalid HTML and breaks PDF/embed behavior */}
+                      <div
+                        role="button"
+                        tabIndex={0}
                         className="context-card-hit"
-                        onClick={() => setExpandedId(item.id)}
+                        onClick={() => {
+                          if (selectionMode) toggleSelectId(item.id)
+                          else setExpandedId(item.id)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            if (selectionMode) toggleSelectId(item.id)
+                            else setExpandedId(item.id)
+                          }
+                        }}
                         aria-expanded={expandedId === item.id}
-                        aria-label={`Expand ${item.title}`}
+                        aria-label={
+                          selectionMode ? `Select ${item.title}` : `Expand ${item.title}`
+                        }
                       >
                         <ContextPreview item={item} compact />
                         <div className="context-card-footer">
@@ -576,11 +777,10 @@ export default function ContextUploadPage({ onBack, caseId }) {
                             </p>
                           ) : null}
                         </div>
-                      </button>
+                      </div>
                     </article>
                   ))}
                 </div>
-              </div>
 
               {totalPages > 1 ? (
                 <nav className="context-pagination" aria-label="Context pages">
@@ -605,6 +805,9 @@ export default function ContextUploadPage({ onBack, caseId }) {
                   </button>
                 </nav>
               ) : null}
+                  </>
+                )}
+              </div>
             </div>
 
             <TextUploadFlow

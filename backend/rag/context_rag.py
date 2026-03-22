@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from context_catalog import context_library_paths
+from context_catalog import context_library_paths, set_rag_doc_id_for_context
 from schemas import StoreDocumentRequest
 
 from .document_extract import extract_text_from_docx, extract_text_from_pdf
@@ -92,6 +92,9 @@ def background_ingest_context_to_rag(case_id: str, row: dict[str, Any]) -> None:
             source="upload",
             timestamp=None,
         )
-        store_document_for_rag(payload)
+        result = store_document_for_rag(payload)
+        ctx_id = str(row.get("id") or "")
+        if ctx_id and result.doc_id:
+            set_rag_doc_id_for_context(case_id, ctx_id, result.doc_id)
     except Exception:
         logger.exception("Background RAG ingest failed for context %s", row.get("id"))

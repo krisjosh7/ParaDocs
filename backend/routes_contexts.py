@@ -19,6 +19,7 @@ from context_catalog import (
     write_catalog,
     context_library_paths,
 )
+from storage import delete_stored_document_files
 from rag.context_rag import background_ingest_context_to_rag
 
 router = APIRouter(prefix="/cases/{case_id}/contexts", tags=["contexts"])
@@ -211,6 +212,15 @@ def delete_context(case_id: str, item_id: str) -> dict[str, str]:
         except OSError:
             pass
 
+    rag_doc = found.get("rag_doc_id")
+    if rag_doc:
+        rid = str(rag_doc).strip()
+        if rid:
+            from rag.vector_store import delete_chunks_for_doc_id
+
+            delete_chunks_for_doc_id(rid)
+            delete_stored_document_files(case_id, rid)
+
     write_catalog(case_id, rest)
     return {"status": "deleted", "id": item_id}
 
@@ -239,4 +249,11 @@ def get_context_media(case_id: str, item_id: str):
 
     mime, _ = mimetypes.guess_type(str(fp))
     media_type = mime or "application/octet-stream"
-    return FileResponse(path=str(fp), filename=row.get("file_name") or fp.name, media_type=media_type)
+    # Omit filename so Starlette does not set Content-Disposition. Safari is prone to showing
+    # "Save As" for PDF iframes when inline responses include filename=; embed + fetch still work.
+    return FileResponse(
+        path=str(fp),
+        filename=None,
+        media_type=media_type,
+        content_disposition_type="inline",
+    )
