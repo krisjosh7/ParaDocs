@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Routes, Route, useNavigate } from 'react-router-dom'
 import FloatingActionButton from './components/FloatingActionButton.jsx'
 import MainContent from './components/MainContent.jsx'
@@ -118,20 +118,11 @@ const INITIAL_CASES = [
   },
 ]
 
-function mergeVisibleOrder(cases, visibleIdSet, newVisibleIds) {
-  const byId = new Map(cases.map((c) => [c.id, c]))
-  let vi = 0
-  return cases.map((c) => (visibleIdSet.has(c.id) ? byId.get(newVisibleIds[vi++]) : c))
-}
-
 function HomePage({ cases, setCases }) {
   const navigate = useNavigate()
   const [currentView, setCurrentView] = useState('home')
   const [searchQuery, setSearchQuery] = useState('')
-  const [cardMenuId, setCardMenuId] = useState(null)
-  const [moveModeId, setMoveModeId] = useState(null)
-  const [drag, setDrag] = useState(null)
-  const activeDragRef = useRef(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
 
   const q = searchQuery.trim().toLowerCase()
   const filteredCases = useMemo(
@@ -140,109 +131,24 @@ function HomePage({ cases, setCases }) {
   )
 
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (event.target.closest?.('.case-card-menu')) return
-      setCardMenuId(null)
+    if (!pendingDelete) return
+    function onKey(e) {
+      if (e.key === 'Escape') setPendingDelete(null)
     }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const finishDrag = useCallback(
-    (e, dragId) => {
-      const x = e.clientX
-      const y = e.clientY
-      const stack = document.elementsFromPoint(x, y)
-      const hit = stack.find(
-        (el) => el instanceof HTMLElement && el.dataset.caseId && el.dataset.caseId !== dragId,
-      )
-
-      setCases((prevCases) => {
-        const qInner = searchQuery.trim().toLowerCase()
-        const visible = qInner === '' ? prevCases : prevCases.filter((c) => c.title.toLowerCase().includes(qInner))
-        const visSet = new Set(visible.map((c) => c.id))
-        let order = visible.map((c) => c.id)
-        order = order.filter((id) => id !== dragId)
-
-        if (hit && hit.dataset.caseId) {
-          const tid = hit.dataset.caseId
-          const insertAt = order.indexOf(tid)
-          if (insertAt >= 0) {
-            const rect = hit.getBoundingClientRect()
-            const before = x < rect.left + rect.width / 2
-            if (before) order.splice(insertAt, 0, dragId)
-            else order.splice(insertAt + 1, 0, dragId)
-          } else {
-            order.push(dragId)
-          }
-        } else {
-          order.push(dragId)
-        }
-
-        return mergeVisibleOrder(prevCases, visSet, order)
-      })
-
-      setMoveModeId(null)
-    },
-    [searchQuery, setCases],
-  )
-
-  useEffect(() => {
-    if (!drag) return
-
-    function onMove(ev) {
-      setDrag((d) =>
-        d ? { ...d, dx: ev.clientX - d.startX, dy: ev.clientY - d.startY } : null,
-      )
-    }
-
-    function onUp(ev) {
-      const payload = activeDragRef.current
-      activeDragRef.current = null
-      setDrag(null)
-      if (payload) finishDrag(ev, payload.id)
-    }
-
-    document.addEventListener('pointermove', onMove)
-    document.addEventListener('pointerup', onUp)
-    document.addEventListener('pointercancel', onUp)
-    return () => {
-      document.removeEventListener('pointermove', onMove)
-      document.removeEventListener('pointerup', onUp)
-      document.removeEventListener('pointercancel', onUp)
-    }
-  }, [drag?.id, finishDrag])
-
-  function handleCardPointerDown(e, id) {
-    if (moveModeId !== id) return
-    if (e.target.closest('.case-card-menu')) return
-    e.preventDefault()
-    if (typeof e.currentTarget.setPointerCapture === 'function') {
-      e.currentTarget.setPointerCapture(e.pointerId)
-    }
-    const next = { id, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0 }
-    activeDragRef.current = next
-    setDrag(next)
-  }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [pendingDelete])
 
   function handleCardClick(e, id) {
-    if (e.target.closest('.case-card-menu')) return
-    if (moveModeId) return
-    if (drag) return
+    if (e.target.closest('.case-card-actions')) return
     navigate('/case/' + id)
   }
 
-  function deleteCase(id) {
+  function confirmDeleteCase() {
+    if (!pendingDelete) return
+    const id = pendingDelete.id
     setCases((c) => c.filter((x) => x.id !== id))
-    setCardMenuId(null)
-    if (moveModeId === id) setMoveModeId(null)
-    if (drag?.id === id) setDrag(null)
-  }
-
-  function startMove(id) {
-    setCardMenuId(null)
-    setMoveModeId(id)
+    setPendingDelete(null)
   }
 
   function handleNewCasePlaceholder() {
@@ -264,77 +170,63 @@ function HomePage({ cases, setCases }) {
               No cases match &ldquo;{searchQuery.trim()}&rdquo;.
             </p>
           ) : (
-            filteredCases.map((item) => {
-              const isCardMenuOpen = cardMenuId === item.id
-              const isMoveReady = moveModeId === item.id
-              const isDragging = drag?.id === item.id
-              const transform =
-                isDragging && drag
-                  ? `translate(${drag.dx}px, ${drag.dy}px)`
-                  : undefined
-
-              return (
+            filteredCases.map((item) => (
                 <article
                   key={item.id}
                   data-case-id={item.id}
-                  className={[
-                    'case-card',
-                    isCardMenuOpen ? 'case-card--menu-open' : '',
-                    isMoveReady ? 'case-card--move-ready' : '',
-                    isDragging ? 'case-card--dragging' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  style={{ ...transform ? { transform } : {}, cursor: moveModeId ? undefined : 'pointer' }}
-                  onPointerDown={(e) => handleCardPointerDown(e, item.id)}
+                  className="case-card"
                   onClick={(e) => handleCardClick(e, item.id)}
                 >
-                  <div className="case-card-menu" onPointerDown={(e) => e.stopPropagation()}>
+                  <div className="case-card-actions" onPointerDown={(e) => e.stopPropagation()}>
                     <button
                       type="button"
-                      className="card-dots"
-                      aria-expanded={isCardMenuOpen}
-                      aria-haspopup="menu"
-                      aria-label={`Actions for ${item.title}`}
+                      className="card-delete"
+                      aria-label={`Delete ${item.title}`}
                       onClick={(e) => {
                         e.stopPropagation()
-                        setCardMenuId((open) => (open === item.id ? null : item.id))
+                        setPendingDelete({ id: item.id, title: item.title })
                       }}
                     >
-                      ⋮
+                      ×
                     </button>
-                    {isCardMenuOpen && (
-                      <div className="card-menu-dropdown" role="menu">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="card-menu-item"
-                          onClick={() => startMove(item.id)}
-                        >
-                          Move card
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="card-menu-item card-menu-item--danger"
-                          onClick={() => deleteCase(item.id)}
-                        >
-                          Delete card
-                        </button>
-                      </div>
-                    )}
                   </div>
                   <h2>{item.title}</h2>
                   <p>{item.summary}</p>
-                  {isMoveReady && !isDragging && (
-                    <p className="case-card-move-hint">Drag this card to a new position</p>
-                  )}
                 </article>
-              )
-            })
+              ))
           )}
         </section>
       </MainContent>
+      {pendingDelete && (
+        <div
+          className="case-delete-confirm-backdrop"
+          role="presentation"
+          onClick={() => setPendingDelete(null)}
+        >
+          <div
+            className="case-delete-confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="case-delete-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="case-delete-title" className="case-delete-confirm-heading">
+              Delete this case?
+            </h2>
+            <p className="case-delete-confirm-body">
+              &ldquo;{pendingDelete.title}&rdquo; will be removed from your list. This cannot be undone.
+            </p>
+            <div className="case-delete-confirm-actions">
+              <button type="button" className="case-delete-confirm-cancel" onClick={() => setPendingDelete(null)}>
+                Cancel
+              </button>
+              <button type="button" className="case-delete-confirm-delete" onClick={confirmDeleteCase}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <FloatingActionButton onNewCase={handleNewCasePlaceholder} />
     </div>
   )
