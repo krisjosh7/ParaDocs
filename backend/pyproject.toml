@@ -1,5 +1,5 @@
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "rag/tests"]
 markers = [
     "integration: full RAG path (HTTP + Chroma + disk); no Ollama",
     "ollama: requires Ollama on 127.0.0.1:11434; skipped if unreachable",
@@ -10,6 +10,7 @@ source = ["."]
 omit = [
     "*/venv/*",
     "*/tests/*",
+    "*/rag/tests/*",
     "*/__pycache__/*",
 ]
 

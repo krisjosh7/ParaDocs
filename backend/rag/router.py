@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
 from fastapi import APIRouter
 
-from chunking import chunk_text
-from parser import parse_legal_structure
 from schemas import (
+    ChunkMetadataOut,
+    ChunkResult,
     Document,
     IngestRequest,
     IngestResponse,
@@ -15,11 +16,12 @@ from schemas import (
     StoreResponse,
     StructuredDocument,
     StructuredHitOut,
-    ChunkResult,
-    ChunkMetadataOut,
 )
 from storage import generate_doc_id, utc_now_iso, write_metadata, write_raw_text, write_structured
-from vector_store import delete_chunks_for_doc_id, query_case, upsert_text_records
+
+from .chunking import chunk_text
+from .parser import parse_legal_structure
+from .vector_store import delete_chunks_for_doc_id, query_case, upsert_text_records
 
 router = APIRouter(tags=["rag"])
 
@@ -215,8 +217,8 @@ def ingest_endpoint(payload: IngestRequest) -> IngestResponse:
     return IngestResponse(num_chunks=total_chunks, doc_id=document.doc_id)
 
 
-@router.post("/store", response_model=StoreResponse)
-def store_endpoint(payload: StoreDocumentRequest) -> StoreResponse:
+def store_document_for_rag(payload: StoreDocumentRequest) -> StoreResponse:
+    """Parse, persist, and embed a document into Chroma (same behavior as POST /store)."""
     document = _build_document_for_store(payload)
     write_raw_text(document.case_id, document.doc_id, document.raw_text)
     structured = parse_legal_structure(document)
@@ -227,6 +229,11 @@ def store_endpoint(payload: StoreDocumentRequest) -> StoreResponse:
         num_chunks=ingest_result.num_chunks,
         summary=structured.summary.text,
     )
+
+
+@router.post("/store", response_model=StoreResponse)
+def store_endpoint(payload: StoreDocumentRequest) -> StoreResponse:
+    return store_document_for_rag(payload)
 
 
 @router.post("/query", response_model=QueryResult)

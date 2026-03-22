@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import urllib.error
 import urllib.request
 
@@ -36,7 +35,7 @@ def rag_isolation(monkeypatch, tmp_path):
     monkeypatch.setenv("CHROMA_PERSIST_DIR", str(chroma_dir))
     monkeypatch.setenv("CASES_ROOT", str(cases_dir))
 
-    import vector_store
+    import rag.vector_store as vector_store
 
     vector_store.get_collection.cache_clear()
 

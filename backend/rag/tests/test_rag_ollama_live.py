@@ -3,7 +3,7 @@ Optional end-to-end tests against a real Ollama server (127.0.0.1:11434).
 Skipped automatically when Ollama is down or the model is missing.
 
 Run only these:
-  pytest tests/rag/test_rag_ollama_live.py -m ollama -v
+  pytest rag/tests/test_rag_ollama_live.py -m ollama -v
 """
 
 from __future__ import annotations

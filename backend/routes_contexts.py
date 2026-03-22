@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -19,6 +19,7 @@ from context_catalog import (
     write_catalog,
     context_library_paths,
 )
+from rag.context_rag import background_ingest_context_to_rag
 
 router = APIRouter(prefix="/cases/{case_id}/contexts", tags=["contexts"])
 
@@ -115,6 +116,7 @@ def list_contexts(case_id: str, request: Request, q: str | None = None) -> Conte
 async def create_context(
     case_id: str,
     request: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile | None = File(None),
     title: str = Form(""),
     caption: str = Form(""),
@@ -176,6 +178,7 @@ async def create_context(
 
     catalog.append(row)
     write_catalog(case_id, catalog)
+    background_tasks.add_task(background_ingest_context_to_rag, case_id, dict(row))
     return _catalog_to_response_item(request, case_id, row)
 
 

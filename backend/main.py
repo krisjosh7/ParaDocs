@@ -11,7 +11,7 @@ from fastapi import Body, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from routes_contexts import router as contexts_router
-from routes_rag import router as rag_router
+from rag.router import router as rag_router
 
 # Routers — each subgraph registers its own router here
 from research.router import router as research_router

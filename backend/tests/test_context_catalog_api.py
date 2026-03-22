@@ -8,6 +8,15 @@ from fastapi.testclient import TestClient
 from main import app
 
 
+@pytest.fixture(autouse=True)
+def _no_background_rag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid Ollama/Chroma during context API tests (patch where the task is referenced)."""
+    monkeypatch.setattr(
+        "routes_contexts.background_ingest_context_to_rag",
+        lambda *args, **kwargs: None,
+    )
+
+
 @pytest.fixture()
 def cases_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / "cases_data"

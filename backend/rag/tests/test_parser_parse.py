@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from fastapi import HTTPException
 
-from parser import parse_legal_structure
+from rag.parser import parse_legal_structure
 from schemas import Document
 
 
@@ -25,7 +25,7 @@ def _minimal_llm_json() -> str:
     )
 
 
-@patch("parser.ollama.chat")
+@patch("rag.parser.ollama.chat")
 def test_parse_legal_structure_success(mock_chat) -> None:
     mock_chat.return_value = {"message": {"content": _minimal_llm_json()}}
     doc = Document(
@@ -41,7 +41,7 @@ def test_parse_legal_structure_success(mock_chat) -> None:
     assert out.summary.text == "One sentence."
 
 
-@patch("parser.ollama.chat")
+@patch("rag.parser.ollama.chat")
 def test_parse_legal_structure_invalid_json(mock_chat) -> None:
     mock_chat.return_value = {"message": {"content": "not json {"}}
     doc = Document(
@@ -56,7 +56,7 @@ def test_parse_legal_structure_invalid_json(mock_chat) -> None:
     assert ei.value.status_code == 500
 
 
-@patch("parser.ollama.chat")
+@patch("rag.parser.ollama.chat")
 def test_parse_legal_structure_ollama_failure(mock_chat) -> None:
     mock_chat.side_effect = RuntimeError("connection refused")
     doc = Document(
@@ -72,7 +72,7 @@ def test_parse_legal_structure_ollama_failure(mock_chat) -> None:
     assert "Ollama" in str(ei.value.detail)
 
 
-@patch("parser.ollama.chat")
+@patch("rag.parser.ollama.chat")
 def test_parse_legal_structure_validation_failure(mock_chat) -> None:
     bad = json.dumps(
         {
