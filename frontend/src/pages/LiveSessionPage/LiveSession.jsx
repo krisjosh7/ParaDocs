@@ -122,7 +122,7 @@ function SurfacedCard({ item, onJumpTo, onDelete, onSave }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-const CHUNK_MS = 3000 // record this many ms, stop, transcribe, restart
+const CHUNK_MS = 5000 // record this many ms, stop, transcribe, restart
 const SEARCH_INTERVAL_MS = 20000 // search every 20s using accumulated transcript
 
 export default function LiveSession({ caseId = 'demo-case' }) {

@@ -6,12 +6,13 @@ import uuid
 from typing import Optional
 
 import httpx
-import yake
+from keybert import KeyBERT
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from research.courtlistener import search_opinions
 from rag.router import store_document_for_rag
+from rag.embedding import get_embedder
 from schemas import StoreDocumentRequest
 
 logger = logging.getLogger(__name__)
@@ -24,35 +25,46 @@ _ELEVENLABS_STT_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 # Don't bother querying for one-word answers like "Yes" or "Okay"
 MIN_TEXT_LENGTH = 20
 
-# YAKE keyphrase extractor — initialized once, runs in <10ms per call.
-# n=3: extract up to 3-word phrases  |  top=6: return top 6 keyphrases
-# dedupLim=0.3: aggressively filter near-duplicate phrases
-_kw_extractor = yake.KeywordExtractor(
-    lan="en", n=3, dedupLim=0.3, top=6, features=None,
-)
+# KeyBERT — reuses the same sentence-transformers model as the RAG vector store.
+# Lazily initialized on first search to avoid slowing startup.
+_kw_model: KeyBERT | None = None
 
 
-def _build_search_query(text: str, context: list[str]) -> str:
+def _get_kw_model() -> KeyBERT:
+    global _kw_model
+    if _kw_model is None:
+        _kw_model = KeyBERT(model=get_embedder())
+    return _kw_model
+
+
+def _extract_search_queries(text: str, context: list[str]) -> list[str]:
     """
-    Extract keyphrases from transcript text using YAKE, then join them
-    into a search query. Falls back to raw text if YAKE finds nothing.
+    Extract keyphrases from transcript text using KeyBERT (embedding-based).
+    Returns a list of individual search queries (one per keyphrase).
     """
     combined = " ".join(context[-2:] + [text])
     if len(combined.strip()) < MIN_TEXT_LENGTH:
-        return ""
+        return []
 
-    print(f"[YAKE] input ({len(combined)} chars): {combined[:300]}")
+    print(f"[KeyBERT] input ({len(combined)} chars): {combined[:300]}")
 
-    keywords = _kw_extractor.extract_keywords(combined)
-    # keywords = [(phrase, score)] — lower score = more relevant
-    phrases = [kw for kw, _score in keywords]
+    kw = _get_kw_model()
+    keywords = kw.extract_keywords(
+        combined,
+        keyphrase_ngram_range=(2, 3),
+        stop_words="english",
+        top_n=3,
+        use_mmr=True,
+        diversity=0.5,
+    )
+    # Only keep high-confidence phrases
+    phrases = [phrase for phrase, score in keywords if score >= 0.4]
 
     if not phrases:
-        return combined.strip()
+        return []
 
-    query = " ".join(phrases)
-    print(f"[YAKE] query: {query}")
-    return query
+    print(f"[KeyBERT] queries: {phrases}")
+    return phrases
 
 def _elevenlabs_api_key() -> str:
     return os.environ.get("ELEVENLABS_API_KEY", "").strip()
@@ -236,24 +248,30 @@ async def _query_rag(case_id: str, text: str, line_index: int) -> list[SurfacedI
 
 
 async def _query_courtlistener(text: str, context: list[str], line_index: int) -> list[SurfacedItem]:
-    query = _build_search_query(text, context)
-    if not query:
+    queries = _extract_search_queries(text, context)
+    if not queries:
         return []
 
-    try:
-        cases = await search_opinions(query, page_size=2)
-    except Exception:
-        return []
+    # Run each keyphrase as a separate search in parallel
+    tasks = [search_opinions(q, page_size=1) for q in queries]
+    batches = await asyncio.gather(*tasks, return_exceptions=True)
 
+    seen_ids: set[str] = set()
     results = []
-    for case in cases[:2]:
-        citation = case.get("citation") or case.get("date_filed", "")
-        label = case["case_name"]
-        if citation:
-            label += f" ({citation})"
-        results.append(SurfacedItem(
-            id=case["id"],
-            after_line=line_index,
+    for batch in batches:
+        if isinstance(batch, Exception):
+            continue
+        for case in batch[:1]:  # top 1 result per query
+            if case["id"] in seen_ids:
+                continue
+            seen_ids.add(case["id"])
+            citation = case.get("citation") or case.get("date_filed", "")
+            label = case["case_name"]
+            if citation:
+                label += f" ({citation})"
+            results.append(SurfacedItem(
+                id=case["id"],
+                after_line=line_index,
             type="caselaw",
             status="hit",
             label=label,
