@@ -301,6 +301,7 @@ export default function CasePage({ cases }) {
   const [branchPick, setBranchPick] = useState({})
   const [researchSummary, setResearchSummary] = useState(null)
   const [researchSummaryError, setResearchSummaryError] = useState(null)
+  const [sourcePanelCard, setSourcePanelCard] = useState(null)
 
   const fetchResearchSummary = useCallback(async () => {
     if (!caseId) return
