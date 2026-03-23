@@ -220,6 +220,39 @@ body {
   color: inherit;
 }
 
+.chat-case-back-btn {
+  width: 36px;
+  height: 36px;
+}
+
+.chat-case-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 240, 232, 0.14);
+  background: rgba(245, 240, 232, 0.07);
+}
+
+.chat-case-nav-btn {
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(245, 240, 232, 0.82);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 7px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.chat-case-nav-btn:hover {
+  background: rgba(245, 240, 232, 0.12);
+  color: #f5f0e8;
+}
+
 /* /chat assistant — Claude-like layout, ParaDocs navy / cream / gold */
 
 .chat-page {

@@ -428,7 +428,7 @@ function mapTimelineEntryFromApi(e) {
   }
 }
 
-const TABS = ['Case Dashboard', 'Discovery', 'Live Listen']
+const TABS = ['Agent', 'Discovery', 'Live Listen']
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -671,7 +671,7 @@ export default function CasePage({ cases }) {
   }, [caseId])
 
   useEffect(() => {
-    if (!caseId || isDiscoveryRoute || activeTab !== 'Case Dashboard') return undefined
+    if (!caseId || isDiscoveryRoute || activeTab !== 'Agent') return undefined
     fetchResearchSummary()
     const timer = window.setInterval(fetchResearchSummary, 12000)
     return () => window.clearInterval(timer)
@@ -679,7 +679,7 @@ export default function CasePage({ cases }) {
 
   // SSE connection for live research feed
   useEffect(() => {
-    if (!caseId || isDiscoveryRoute || activeTab !== 'Case Dashboard') return undefined
+    if (!caseId || isDiscoveryRoute || activeTab !== 'Agent') return undefined
     const url = `${API_BASE}/research/cases/${encodeURIComponent(caseId)}/stream`
     let es
     try {
@@ -736,14 +736,14 @@ export default function CasePage({ cases }) {
 
 
   useEffect(() => {
-    if (!caseId || isDiscoveryRoute || activeTab !== 'Case Dashboard') return undefined
+    if (!caseId || isDiscoveryRoute || activeTab !== 'Agent') return undefined
     fetchContextCatalog()
     const timer = window.setInterval(fetchContextCatalog, 12000)
     return () => window.clearInterval(timer)
   }, [caseId, isDiscoveryRoute, activeTab, fetchContextCatalog])
 
   useEffect(() => {
-    if (!caseId || isDiscoveryRoute || activeTab !== 'Case Dashboard') return undefined
+    if (!caseId || isDiscoveryRoute || activeTab !== 'Agent') return undefined
     setAgenticLoading(true)
     fetchAgenticTasks().finally(() => setAgenticLoading(false))
     const timer = window.setInterval(fetchAgenticTasks, 12000)
@@ -868,7 +868,7 @@ export default function CasePage({ cases }) {
     } else if (location.state?.tab) {
       setActiveTab(location.state.tab)
     } else if (activeTab === 'Discovery') {
-      setActiveTab('Case Dashboard')
+      setActiveTab('Agent')
     }
   }, [isDiscoveryRoute])
 
@@ -934,6 +934,14 @@ export default function CasePage({ cases }) {
             </button>
           ))}
         </nav>
+        <button
+          type="button"
+          className="header-try-cta case-header-try-cta"
+          onClick={() => navigate(`/chat?case=${encodeURIComponent(caseId)}`)}
+          aria-label="Try Lex (opens chat)"
+        >
+          <span className="header-try-cta__label">Try Lex</span>
+        </button>
       </header>
 
       <div className="layout-body">

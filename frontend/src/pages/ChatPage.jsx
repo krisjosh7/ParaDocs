@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { createFileContext, inferContextTypeFromFile } from './ContextUploadPage/contextUploadHelpers.js'
 
 const DEFAULT_API = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
@@ -425,6 +425,8 @@ function ChatHeroMark() {
 }
 
 export default function ChatPage({ cases = [], apiBase = DEFAULT_API }) {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -439,7 +441,7 @@ export default function ChatPage({ cases = [], apiBase = DEFAULT_API }) {
   const voicePhaseRef = useRef('idle')
   const voiceStreamRef = useRef(null)
   const voiceRecorderRef = useRef(null)
-  const voiceChunksRef = useRef([])
+  const voiceChunkQueueRef = useRef(Promise.resolve())
 
   useEffect(() => {
     voicePhaseRef.current = voicePhase
@@ -469,42 +471,44 @@ export default function ChatPage({ cases = [], apiBase = DEFAULT_API }) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       voiceStreamRef.current = stream
-      voiceChunksRef.current = []
       const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : ''
       const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
       voiceRecorderRef.current = rec
-      rec.ondataavailable = (ev) => {
-        if (ev.data.size) voiceChunksRef.current.push(ev.data)
-      }
-      rec.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop())
-        voiceStreamRef.current = null
-        voiceRecorderRef.current = null
-        const blob = new Blob(voiceChunksRef.current, { type: 'audio/webm' })
-        voiceChunksRef.current = []
-        if (blob.size < 32) {
-          setVoicePhase('idle')
-          return
-        }
-        setVoicePhase('transcribing')
-        try {
-          const text = await transcribeAudioBlob(apiBase, blob)
-          if (text) {
+
+      const queueChunkTranscription = (chunk) => {
+        voiceChunkQueueRef.current = voiceChunkQueueRef.current
+          .then(async () => {
+            if (!chunk || chunk.size < 32) return
+            const text = await transcribeAudioBlob(apiBase, chunk)
+            if (!text) return
             setInput((prev) => {
               const p = prev.trimEnd()
               return p ? `${p} ${text}` : text
             })
             setChatError(null)
-          } else {
+          })
+          .catch(() => {
             setChatError('Could not transcribe audio. Try again or check ELEVENLABS_API_KEY / DEEPGRAM_API_KEY.')
-          }
-        } catch {
-          setChatError('Could not reach the server to transcribe.')
+          })
+      }
+
+      rec.ondataavailable = (ev) => {
+        if (!ev.data?.size) return
+        queueChunkTranscription(ev.data)
+      }
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop())
+        voiceStreamRef.current = null
+        voiceRecorderRef.current = null
+        setVoicePhase('transcribing')
+        try {
+          await voiceChunkQueueRef.current
         } finally {
+          voiceChunkQueueRef.current = Promise.resolve()
           setVoicePhase('idle')
         }
       }
-      rec.start()
+      rec.start(2000)
       setVoicePhase('recording')
     } catch {
       setChatError('Microphone permission is required for voice input.')
@@ -526,6 +530,15 @@ export default function ChatPage({ cases = [], apiBase = DEFAULT_API }) {
 
   const activeCase = cases.find((c) => c.id === chatCaseId)
   const caseLabelForAttach = activeCase ? activeCase.title?.trim() || activeCase.id : ''
+  const activeCaseId = activeCase?.id || ''
+
+  useEffect(() => {
+    const fromQuery = (searchParams.get('case') || '').trim()
+    if (!fromQuery) return
+    if (!cases.some((c) => c.id === fromQuery)) return
+    setChatCaseId(fromQuery)
+    chatCaseDefaultedRef.current = true
+  }, [searchParams, cases])
 
   useEffect(() => {
     if (cases.length === 0 || chatCaseDefaultedRef.current) return
@@ -602,10 +615,44 @@ export default function ChatPage({ cases = [], apiBase = DEFAULT_API }) {
     <div className="home-shell">
       <main className="main-content main-content--home main-content--chat">
         <header className="home-main-header home-main-header--ruled chat-page-header">
-          <Link to="/" className="home-header-button chat-page-home-link">
-            <h1 className="home-main-title">ParaDocs</h1>
-          </Link>
-          <div className="home-header-spacer" aria-hidden="true" />
+          {activeCaseId ? (
+            <>
+              <Link to="/" className="home-header-button chat-page-home-link">
+                <h1 className="home-main-title">ParaDocs</h1>
+              </Link>
+              <div className="home-header-spacer" aria-hidden="true" />
+              <nav className="chat-case-nav" aria-label="Case navigation">
+                <button
+                  type="button"
+                  className="chat-case-nav-btn"
+                  onClick={() => navigate(`/case/${encodeURIComponent(activeCaseId)}`, { state: { tab: 'Agent' } })}
+                >
+                  Agent
+                </button>
+                <button
+                  type="button"
+                  className="chat-case-nav-btn"
+                  onClick={() => navigate(`/case/${encodeURIComponent(activeCaseId)}/context-upload`)}
+                >
+                  Discovery
+                </button>
+                <button
+                  type="button"
+                  className="chat-case-nav-btn"
+                  onClick={() => navigate(`/case/${encodeURIComponent(activeCaseId)}`, { state: { tab: 'Live Listen' } })}
+                >
+                  Live Listen
+                </button>
+              </nav>
+            </>
+          ) : (
+            <>
+              <Link to="/" className="home-header-button chat-page-home-link">
+                <h1 className="home-main-title">ParaDocs</h1>
+              </Link>
+              <div className="home-header-spacer" aria-hidden="true" />
+            </>
+          )}
         </header>
 
         <div className="chat-page">
